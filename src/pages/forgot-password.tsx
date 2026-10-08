@@ -6,7 +6,7 @@ import { ShoppingCart, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { Card, CardContent } from '#components/ui/card';
 import { Field, FieldDescription, FieldError, FieldLabel } from '#components/ui/field';
-import { ApiError } from '#lib/api-client';
+import { ApiError } from '#lib/api/index';
 import { Button } from '#components/ui/button';
 
 const forgotSchema = z.object({

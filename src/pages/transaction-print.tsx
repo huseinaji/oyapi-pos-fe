@@ -1,25 +1,14 @@
-import { useEffect } from 'react';
 import { useParams } from 'react-router';
 import { formatRp } from '../lib/transaction-utils';
-import { useTransactionStore } from '#lib/transaction/transaction-store';
+import { useTransactionQuery } from '#lib/transaction/transaction-store';
 
 export default function TransactionPrintPage() {
   const { id = '' } = useParams<{ id: string }>();
 
-  const transaction = useTransactionStore((state) =>
-    state.transactions.find((tx) => tx.id === id),
-  );
-  const isLoading = useTransactionStore((state) => state.isLoading);
-  const fetchTransactionById = useTransactionStore(
-    (state) => state.fetchTransactionById,
-  );
+  const transactionQuery = useTransactionQuery(id);
+  const transaction = transactionQuery.data;
 
-  useEffect(() => {
-    if (!id) return;
-    void fetchTransactionById(id);
-  }, [id, fetchTransactionById]);
-
-  if (isLoading && !transaction) {
+  if (transactionQuery.isLoading) {
     return (
       <p className="p-8 text-sm text-[var(--muted)]">Loading receipt...</p>
     );

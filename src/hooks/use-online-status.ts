@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { API_BASE } from '../lib/api';
 
 /**
  * Returns true when the browser has network connectivity.
@@ -12,19 +13,50 @@ export function useOnlineStatus(): boolean {
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    // Set initial online status after hydration
+    let isMounted = true;
+
+    const checkReachability = async () => {
+      if (!navigator.onLine) {
+        setIsOnline(false);
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+
+      try {
+        // Any HTTP response means the backend is reachable, including 401.
+        await fetch(`${API_BASE}/api/v1/auth/me`, {
+          credentials: 'include',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (isMounted) setIsOnline(true);
+      } catch {
+        if (isMounted) setIsOnline(false);
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    };
+
     setIsOnline(navigator.onLine);
     setIsHydrated(true);
 
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => void checkReachability();
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    const intervalId = window.setInterval(() => {
+      void checkReachability();
+    }, 30000);
+    void checkReachability();
 
     return () => {
+      isMounted = false;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.clearInterval(intervalId);
     };
   }, []);
 

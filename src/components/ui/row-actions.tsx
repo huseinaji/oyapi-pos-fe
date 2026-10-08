@@ -37,20 +37,27 @@ export function RowActions({
     const dropdownHeight = actions.length * 40 + 8; // approximate
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const spaceOnRight = viewportWidth - buttonRect.right;
     const spaceBelow = viewportHeight - buttonRect.bottom;
 
     // Calculate position
-    const top =
+    const preferredTop =
       spaceBelow >= dropdownHeight
         ? buttonRect.bottom + 6 // 6px = mt-1.5
         : buttonRect.top - dropdownHeight - 6;
 
-    const alignRight = spaceOnRight >= dropdownWidth;
+    const preferredLeft = buttonRect.left - dropdownWidth - 6;
+    const top = Math.max(
+      8,
+      Math.min(preferredTop, viewportHeight - dropdownHeight - 8),
+    );
+    const left =
+      preferredLeft >= 8
+        ? preferredLeft
+        : Math.min(buttonRect.right + 6, viewportWidth - dropdownWidth - 8);
 
     setPosition({
       top,
-      left: alignRight ? buttonRect.right - dropdownWidth : buttonRect.left,
+      left,
       right: 'auto',
     });
   }, [open, actions.length]);

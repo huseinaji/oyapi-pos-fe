@@ -1,10 +1,13 @@
+import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import {
   LayoutGrid,
   Package2,
+  Tags,
   ReceiptText,
   ShoppingCart,
+  ClipboardCheck,
   Users,
   Menu,
   Moon,
@@ -12,16 +15,28 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
-  ChevronRight,
   Settings,
+  ClipboardList,
+  SlidersHorizontal,
   Wifi,
   WifiOff,
+  ChevronDown,
 } from 'lucide-react';
 import { useAuthStore, useLogoutMutation } from '../../lib/auth/auth-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useSettingsStore } from '../../stores/settings-store';
 import { useOnlineStatus } from '../../hooks/use-online-status';
+import { useOfflineTransactionSync } from '../../hooks/use-offline-transaction-sync';
 import type { ApiUserRole } from '../../types/api';
+import { useCashierSessionsQuery } from '#lib/cashier-sessions/cashier-sessions-store';
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '../ui/breadcrumb';
 
 // ---------------------------------------------------------------------------
 // Nav config
@@ -31,16 +46,21 @@ type NavItem = {
   href: string;
   label: string;
   icon: React.ElementType;
+  group: 'Overview' | 'Inventory' | 'Sales' | 'Administration';
   roles?: ApiUserRole[];
 };
 
 const ALL_NAV_ITEMS: NavItem[] = [
-  { href: '/',             label: 'Dashboard',    icon: LayoutGrid,  roles: ['ADMIN'] },
-  { href: '/products',     label: 'Products',     icon: Package2,    roles: ['ADMIN'] },
-  { href: '/transactions', label: 'Transactions', icon: ReceiptText },
-  { href: '/pos',          label: 'POS',          icon: ShoppingCart },
-  { href: '/users',        label: 'Users',        icon: Users,       roles: ['ADMIN'] },
-  { href: '/settings',     label: 'Settings',     icon: Settings,    roles: ['ADMIN'] },
+  { href: '/', label: 'Dashboard', icon: LayoutGrid, group: 'Overview', roles: ['ADMIN'] },
+  { href: '/products', label: 'Items', icon: Package2, group: 'Inventory', roles: ['ADMIN'] },
+  { href: '/item-categories', label: 'Item Categories', icon: Tags, group: 'Inventory', roles: ['ADMIN'] },
+  { href: '/stock-ledger', label: 'Stock Ledger', icon: ClipboardList, group: 'Inventory', roles: ['ADMIN']},
+  { href: '/stock-adjustment', label: 'Stock Adjustment', icon: SlidersHorizontal, group: 'Inventory', roles: ['ADMIN'] },
+  { href: '/pos', label: 'POS', icon: ShoppingCart, group: 'Sales' },
+  { href: '/cashier-sessions', label: 'Cashier Sessions', icon: ClipboardCheck, group: 'Sales'},
+  { href: '/transactions', label: 'Transactions', icon: ReceiptText, group: 'Sales', roles: ['ADMIN'] },
+  { href: '/users', label: 'Users', icon: Users, group: 'Administration', roles: ['ADMIN'] },
+  { href: '/settings', label: 'Settings', icon: Settings, group: 'Administration', roles: ['ADMIN'] },
 ];
 
 function getVisibleNavItems(role: ApiUserRole | undefined): NavItem[] {
@@ -49,7 +69,7 @@ function getVisibleNavItems(role: ApiUserRole | undefined): NavItem[] {
   );
 }
 
-const ADMIN_ONLY_ROUTES = ['/products', '/users', '/settings', '/categories'];
+const ADMIN_ONLY_ROUTES = ['/products', '/item-categories', '/users', '/settings', '/categories'];
 
 // ---------------------------------------------------------------------------
 // Breadcrumb helpers
@@ -82,17 +102,26 @@ function buildBreadcrumbs(pathname: string): Crumb[] {
       seg.startsWith('t-') ||
       seg.startsWith('p-') ||
       seg.startsWith('u-');
-    if (!isDynamic) {
-      const isLast = i === segments.length - 1;
-      const nextIsDynamic = segments[i + 1]
-        ? /^[a-z]+-?\d+$/i.test(segments[i + 1]) || segments[i + 1].startsWith('t-')
-        : false;
-      const href =
-        !isLast && !nextIsDynamic
-          ? '/' + segments.slice(0, i + 1).join('/')
-          : undefined;
-      crumbs.push({ label: capitalise(seg), href });
+    const isLast = i === segments.length - 1;
+    const nextIsDynamic = segments[i + 1]
+      ? /^[a-z]+-?\d+$/i.test(segments[i + 1]) ||
+        segments[i + 1].startsWith('t-') ||
+        segments[i + 1].startsWith('p-') ||
+        segments[i + 1].startsWith('u-')
+      : false;
+
+    if (seg.toLowerCase() === 'detail') continue;
+
+    if (isDynamic) {
+      crumbs.push({ label: seg });
+      continue;
     }
+
+    const href =
+      !isLast && !nextIsDynamic
+        ? '/' + segments.slice(0, i + 1).join('/')
+        : undefined;
+    crumbs.push({ label: capitalise(seg), href });
   }
 
   return crumbs;
@@ -133,30 +162,38 @@ function UserAvatar({ name, collapsed }: { name: string; collapsed: boolean }) {
 function Breadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
   if (crumbs.length <= 1) return null;
   return (
-    <nav aria-label="Breadcrumb">
-      <ol className="flex flex-wrap items-center gap-1 text-xs text-[var(--muted)]">
+    <Breadcrumb className="min-w-0 max-w-full overflow-hidden">
+      <BreadcrumbList className="min-w-0 flex-nowrap overflow-hidden whitespace-nowrap">
         {crumbs.map((crumb, i) => {
           const isLast = i === crumbs.length - 1;
           return (
-            <li key={i} className="flex items-center gap-1">
-              {i > 0 && <ChevronRight size={11} className="opacity-50" />}
+            <React.Fragment key={i}>
+              {i > 0 && <BreadcrumbSeparator />}
               {!isLast && crumb.href ? (
-                <Link
-                  to={crumb.href}
-                  className="transition hover:text-[var(--foreground)]"
-                >
-                  {crumb.label}
-                </Link>
+                <BreadcrumbItem className="min-w-0 shrink">
+                  <BreadcrumbLink
+                    href={crumb.href}
+                    className="block min-w-0 max-w-[min(40vw,12rem)] truncate"
+                  >
+                    {crumb.label}
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
               ) : (
-                <span className={isLast ? 'font-medium text-[var(--foreground)]' : ''}>
-                  {crumb.label}
-                </span>
+                <BreadcrumbItem className="min-w-0 shrink">
+                  {isLast ? (
+                    <BreadcrumbPage className="block min-w-0 max-w-[min(55vw,24rem)] truncate">
+                      {crumb.label}
+                    </BreadcrumbPage>
+                  ) : (
+                    <span>{crumb.label}</span>
+                  )}
+                </BreadcrumbItem>
               )}
-            </li>
+            </React.Fragment>
           );
         })}
-      </ol>
-    </nav>
+      </BreadcrumbList>
+    </Breadcrumb>
   );
 }
 
@@ -191,10 +228,16 @@ function OnlineIndicator({ expanded }: { expanded: boolean }) {
 // ---------------------------------------------------------------------------
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  useOfflineTransactionSync();
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
   const currentUser = useAuthStore((state) => state.currentUser);
+  const cashierSessionsQuery = useCashierSessionsQuery(currentUser?.store?.storeId);
+  const activeCashierSession = cashierSessionsQuery.data?.find(
+    (session) => session.status === 'OPEN',
+  );
+  const cashierSessionAvailable = Boolean(activeCashierSession);
   const logoutMutation = useLogoutMutation();
   const logout = () => {
     void logoutMutation.mutateAsync();
@@ -214,6 +257,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   } = useUIStore();
 
   const [mounted, setMounted] = useState(false);
+  const [collapsedNavGroups, setCollapsedNavGroups] = useState<string[]>([]);
   const { settings } = useSettingsStore();
 
   // Route guard — redirect non-ADMIN away from admin-only pages
@@ -247,6 +291,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const crumbs = buildBreadcrumbs(pathname);
   const visibleNavItems = getVisibleNavItems(currentUser?.role);
+  const visibleNavGroups = [...new Set(visibleNavItems.map((item) => item.group))];
+  const toggleNavGroup = (group: string) => {
+    setCollapsedNavGroups((current) =>
+      current.includes(group)
+        ? current.filter((collapsedGroup) => collapsedGroup !== group)
+        : [...current, group],
+    );
+  };
   const activeNav = ALL_NAV_ITEMS.find((item) => isNavActive(item.href, pathname));
   const pageTitle = crumbs[crumbs.length - 1]?.label ?? activeNav?.label ?? 'Dashboard';
 
@@ -317,31 +369,65 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
 
             {/* Nav */}
-            <nav className="flex-1 space-y-1 overflow-hidden px-3">
-              {visibleNavItems.map((item) => {
-                const Icon = item.icon;
-                const active = isNavActive(item.href, pathname);
-                return (
-                  <Link
-                    key={item.href}
-                    to={item.href}
-                    onClick={() => isMobile && toggleSidebar()}
-                    className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition ${
-                      active
-                        ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
-                        : 'text-[var(--foreground)] hover:bg-[var(--surface-muted)]'
-                    } ${sidebarCollapsed && !isMobile ? 'justify-center' : ''}`}
-                    title={sidebarCollapsed && !isMobile ? item.label : undefined}
-                    aria-current={active ? 'page' : undefined}
+            <nav className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-3 pb-3 [scrollbar-width:thin]">
+              {visibleNavGroups.map((group) => (
+                <section key={group} className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleNavGroup(group)}
+                    aria-label={`Toggle ${group} navigation`}
+                    aria-expanded={!collapsedNavGroups.includes(group)}
+                    aria-controls={`sidebar-group-${group.toLowerCase()}`}
+                    title={sidebarExpanded ? undefined : group}
+                    className={`flex h-8 w-full items-center rounded-lg text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)] transition hover:bg-[var(--surface-muted)] ${sidebarExpanded ? 'justify-between px-3' : 'justify-center'}`}
                   >
-                    <Icon size={18} />
-                    {sidebarExpanded && <span>{item.label}</span>}
-                    {active && sidebarCollapsed && !isMobile && (
-                      <span className="absolute right-2 h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-                    )}
-                  </Link>
-                );
-              })}
+                    {sidebarExpanded && <span>{group}</span>}
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform ${collapsedNavGroups.includes(group) ? '-rotate-90' : ''}`}
+                    />
+                  </button>
+                  <div
+                    id={`sidebar-group-${group.toLowerCase()}`}
+                    hidden={collapsedNavGroups.includes(group)}
+                  >
+                    {visibleNavItems
+                      .filter((item) => item.group === group)
+                      .map((item) => {
+                        const Icon = item.icon;
+                        const active = isNavActive(item.href, pathname);
+                        const disabled = item.href === '/pos' && !cashierSessionAvailable;
+                        return (
+                          <Link
+                            key={item.href}
+                            to={item.href}
+                            aria-disabled={disabled}
+                            tabIndex={disabled ? -1 : undefined}
+                            onClick={(event) => {
+                              if (disabled) {
+                                event.preventDefault();
+                                return;
+                              }
+                              if (isMobile) toggleSidebar();
+                            }}
+                            className={`flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition ${
+                              disabled
+                                ? 'cursor-not-allowed text-[var(--muted)] opacity-50'
+                                : active
+                                  ? 'bg-[var(--accent)]/15 text-[var(--accent)]'
+                                  : 'text-[var(--foreground)] hover:bg-[var(--surface-muted)]'
+                            } ${sidebarCollapsed && !isMobile ? 'justify-center' : ''}`}
+                            title={disabled ? 'Open or join a cashier session to enable POS' : sidebarCollapsed && !isMobile ? item.label : undefined}
+                            aria-current={active ? 'page' : undefined}
+                          >
+                            <Icon size={18} />
+                            {sidebarExpanded && <span>{item.label}</span>}
+                          </Link>
+                        );
+                      })}
+                  </div>
+                </section>
+              ))}
             </nav>
 
             {/* Bottom — theme + user + logout */}
@@ -415,13 +501,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Main content */}
         <div
-          className={`flex-1 ${
+          className={`min-w-0 flex-1 ${
             isMobile ? '' : sidebarCollapsed ? 'ml-24' : 'ml-72'
-          } transition-[margin-left] duration-200`}
+          } flex min-h-0 flex-col transition-[margin-left] duration-200`}
         >
           <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--background)]/90 backdrop-blur">
             <div className="flex items-center justify-between px-4 py-3 sm:px-6">
-              <div className="flex min-w-0 flex-1 items-center gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
                 <button
                   onClick={toggleSidebar}
                   className="rounded-full p-2 text-[var(--muted)] hover:bg-[var(--surface-muted)] lg:hidden"
@@ -454,7 +540,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </header>
 
-          <main className="p-4 sm:p-6">{children}</main>
+          <main className="min-h-0 min-w-0 flex-1 p-4 sm:p-6">{children}</main>
         </div>
       </div>
     </div>

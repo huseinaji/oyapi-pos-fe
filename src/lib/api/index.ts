@@ -1,47 +1,43 @@
-import axios, { type InternalAxiosRequestConfig } from 'axios'
+import axios from 'axios';
+import type { ApiErrorBody } from '../../types/api';
 
-const BASE_URL = 'http://localhost:3001';
+export const API_BASE =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? '' : 'http://192.168.1.9:3001');
 
-const CSRF_METHODS = new Set([
-  'post',
-  'put',
-  'patch',
-  'delete',
-]);
+export class ApiError extends Error {
+  constructor(
+    public readonly statusCode: number,
+    message: string,
+    public readonly body?: ApiErrorBody,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
 
 export const Api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_BASE,
   withCredentials: true,
-})
+});
 
-let csrfToken: string | null = null;
+Api.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (!axios.isAxiosError(error)) return Promise.reject(error);
 
-const getCsrfToken = async (): Promise<string | null> => {
-  if (csrfToken) {
-    return csrfToken;
-  }
+    const statusCode = error.response?.status ?? 0;
+    const responseBody = error.response?.data;
+    const body =
+      responseBody && typeof responseBody === 'object'
+        ? (responseBody as ApiErrorBody)
+        : undefined;
+    const message = body?.message
+      ? Array.isArray(body.message)
+        ? body.message.join(', ')
+        : body.message
+      : error.message;
 
-  const response = await Api.get('/api/v1/auth/csrf');
-
-  csrfToken = response.data.csrfToken;
-
-  return csrfToken;
-};
-
-Api.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig) => {
-    const method = config.method?.toLowerCase();
-
-    if (method && CSRF_METHODS.has(method)) {
-      const token = await getCsrfToken();
-
-      config.headers.set('X-CSRF-TOKEN', token);
-    }
-
-    return config;
+    return Promise.reject(new ApiError(statusCode, message, body));
   },
 );
-
-export const clearCsrfToken = () => {
-  csrfToken = null;
-};

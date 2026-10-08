@@ -1,7 +1,7 @@
 type AppButtonProps = {
   children: React.ReactNode;
   variant?: 'primary' | 'secondary' | 'inverted' | 'secondary-inverted';
-  onClick?: () => void;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
   type?: 'button' | 'submit' | 'reset';
   disabled?: boolean;
 };

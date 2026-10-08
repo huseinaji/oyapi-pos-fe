@@ -17,10 +17,10 @@ export type LoginDto = {
 /** POST /api/v1/auth/login — successful response */
 export type LoginResponse = {
   message?: string;
-  data?: {
-    accessToken?: string;
-  };
 };
+
+/** POST /api/v1/auth/logout — OpenAPI documents 201 with no response schema. */
+export type LogoutResponse = void;
 
 
 
@@ -35,136 +35,6 @@ export type SignupDto = {
 export type ApiUserRole = 'ADMIN' | 'USER' | 'CASHIER';
 export type ApiUserStatus = 'ACTIVE' | 'INACTIVE';
 
-/** POST /api/v1/pos/transaction — request body */
-export type CreatePOSTransactionDto = {
-  paymentMethod: 'cash' | 'qris';
-  customer?: string;
-  invoice?: string;
-  cashier?: string;
-  subtotal?: number;
-  discount?: number;
-  tax?: number;
-  total?: number;
-  items?: Array<{
-    id?: string;
-    itemId?: string;
-    name?: string;
-    qty?: number;
-    price?: number;
-    total?: number;
-  }>;
-};
-
-/** GET /api/v1/invoices — list response */
-export type SalesInvoiceItem = {
-  id: string;
-  salesInvoiceId: string;
-  itemId: string;
-  item: {
-    name: string;
-    description: string;
-    uom: string;
-  } | null;
-  qty: number;
-  amount: number;
-};
-
-export type SalesInvoiceCreator = {
-  id: string;
-  username: string;
-  email: string;
-  role: ApiUserRole;
-  status: ApiUserStatus;
-};
-
-export type SalesInvoice = {
-  id: string;
-  userId: string;
-  invoiceId: string;
-  customer?: string;
-  paymentMethod: 'cash' | 'qris';
-  totalAmount: number;
-  status: string;
-  createdBy: string;
-  updatedBy: string;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string | null;
-  salesInvoiceItems: SalesInvoiceItem[];
-  creator: SalesInvoiceCreator;
-};
-
-export type SalesInvoiceListResponse = {
-  count: number;
-  rows: SalesInvoice[];
-};
-
-// ---------------------------------------------------------------------------
-// Item (Product)
-// ---------------------------------------------------------------------------
-
-export type ApiItemBin = {
-  itemId: number;
-  stockValue: number;
-  uom: number;
-};
-
-/** Shape of a single item returned by the API */
-export type ApiItem = {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-  uom: string;
-  basePrice: number;
-  sellingPrice: number;
-  isMaintainStock: boolean;
-  stock?: number;
-  bin?: ApiItemBin;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-/** GET /api/v1/items — list response */
-export type ItemListResponse = {
-  count: number;
-  rows: ApiItem[];
-};
-
-/** POST /api/v1/items — request body */
-export type CreateItemDto = {
-  name: string;
-  category: string;
-  uom: string;
-  basePrice: number;
-  sellingPrice: number;
-  isMaintainStock?: boolean;
-};
-
-/** PATCH /api/v1/items/{id} — request body (all fields optional) */
-export type UpdateItemDto = Partial<CreateItemDto>;
-
-/** Enum values accepted by the backend for item category */
-export const ITEM_CATEGORY_OPTIONS = ['raw_material', 'finished_good'] as const;
-export type ItemCategory = (typeof ITEM_CATEGORY_OPTIONS)[number];
-
-/** Display labels for item categories */
-export const ITEM_CATEGORY_LABELS: Record<ItemCategory, string> = {
-  raw_material: 'Raw Material',
-  finished_good: 'Finished Good',
-};
-
-/** Enum values accepted by the backend for item unit of measure */
-export const ITEM_UOM_OPTIONS = ['pcs', 'box', 'kg'] as const;
-export type ItemUom = (typeof ITEM_UOM_OPTIONS)[number];
-
-/** Display labels for item UOM */
-export const ITEM_UOM_LABELS: Record<ItemUom, string> = {
-  pcs: 'Pieces',
-  box: 'Box',
-  kg: 'Kilogram',
-};
 
 // ---------------------------------------------------------------------------
 // User
@@ -200,14 +70,19 @@ export type ChangePasswordDto = {
   newPassword: string;
 };
 
-/** GET /api/v1/items query params */
+/** GET /api/v1/store/{storeId}/items query params */
 export type ItemFilterParams = {
   name?: string;
-  category?: string;
+  type?: string;
   uom?: string;
   basePrice?: number;
   sellingPrice?: number;
+  categoryId?: string;
+  description?: string;
   isMaintainStock?: boolean;
+  initialStock?: number;
+  page?: number;
+  limit?: number;
 };
 
 // ---------------------------------------------------------------------------

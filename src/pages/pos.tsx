@@ -16,24 +16,32 @@ import {
   Package,
   Keyboard,
   TriangleAlert,
-  Badge,
+  ChevronUp,
+  X,
 } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { AppButton } from '../components/ui/app-button';
 import { PageHeader } from '../components/ui/page-header';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+} from '../components/ui/card';
 import { useCartStore } from '../stores/cart-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { formatRp } from '../lib/transaction-utils';
-import { transactionsApi } from '../lib/transaction/transactions-api';
-import { ApiError } from '../lib/api-client';
+import { ApiError } from '@/lib/api/index';
 import { ProductGridSkeleton } from '../components/ui/skeleton';
-import { ITEM_CATEGORY_LABELS } from '../types/api';
-import { useProductStore } from '#lib/product/product-store';
-import { useTransactionStore } from '#lib/transaction/transaction-store';
-import { Card, CardAction, CardDescription, CardFooter, CardHeader, CardTitle } from '#components/ui/card';
-import { Button } from '#components/ui/button';
+import { usePosProductsQuery } from '@/lib/product/product-store';
+import { useCreatePOSTransactionMutation } from '@/lib/transaction/transaction-store';
+import { ITEM_TYPE_LABELS } from '@/lib/product/product-types';
+import { useMeQuery } from '@/lib/auth/auth-store';
+import type { Product } from '../types/inde';
 
 const paymentSteps = ['Cart', 'Payment', 'Review'] as const;
+type PaymentStep = 0 | 1 | 2;
+
 const WALK_IN_CUSTOMER = 'Walk-in Customer';
 
 function showInsufficientStockToast(description: string) {
@@ -43,87 +51,51 @@ function showInsufficientStockToast(description: string) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
+
 export default function PosPage() {
-  const {
-    items,
-    subtotal,
-    discount,
-    total,
-    addItem,
-    removeItem,
-    updateQty,
-    clearCart,
-    recalculate,
-  } = useCartStore();
-  const products = useProductStore((state) => state.products);
-  const isProductsLoading = useProductStore((state) => state.isLoading);
-  const fetchItems = useProductStore((state) => state.fetchItems);
-  const decrementStock = useProductStore((state) => state.decrementStock);
-  const addTransaction = useTransactionStore((state) => state.addTransaction);
+  const navigate = useNavigate();
+  const { addItem, recalculate } = useCartStore();
+  const { data: products = [], isLoading: isProductsLoading } = usePosProductsQuery();
   const { settings } = useSettingsStore();
+  const { data: currentUser } = useMeQuery();
+  const storeId = currentUser?.store?.storeId;
 
-  useEffect(() => {
-    recalculate();
-  }, [recalculate]);
+  useEffect(() => { recalculate(); }, [recalculate]);
 
-  const [step, setStep] = useState(0);
-  const [customer, setCustomer] = useState(WALK_IN_CUSTOMER);
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>('cash');
-  const [cashReceived, setCashReceived] = useState('');
-  const [completedOrder, setCompletedOrder] = useState<{
-    invoice: string;
-    total: number;
-    customer: string;
-    paymentMethod: 'cash' | 'qris';
-  } | null>(null);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [desktopTab, setDesktopTab] = useState<'products' | 'order'>(
-    'products',
-  );
   const [lastAddedId, setLastAddedId] = useState<string | null>(null);
-  const [focusedProductIndex, setFocusedProductIndex] = useState<number>(-1);
+  const [focusedProductIndex, setFocusedProductIndex] = useState(-1);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const productButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const productFetchRequestedRef = useRef(false);
 
-  useEffect(() => {
-    if (products.length > 0 || productFetchRequestedRef.current) return;
-    productFetchRequestedRef.current = true;
-    void fetchItems();
-  }, [fetchItems, products.length]);
-
-  // ── ⌘K / Ctrl+K → focus search ──────────────────────────────────────────
+  // Ctrl/Cmd+K → focus search
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const isShortcut = (e.metaKey || e.ctrlKey) && e.key === 'k';
-      if (!isShortcut) return;
-      e.preventDefault();
-      searchRef.current?.focus();
-      searchRef.current?.select();
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  // ── Arrow-key navigation through product grid ────────────────────────────
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      const next =
-        focusedProductIndex < availableProducts.length - 1
-          ? focusedProductIndex + 1
-          : 0;
+      const next = focusedProductIndex < availableProducts.length - 1 ? focusedProductIndex + 1 : 0;
       setFocusedProductIndex(next);
       productButtonRefs.current[next]?.focus();
     }
   };
 
-  const handleProductKeyDown = (
-    e: React.KeyboardEvent<HTMLButtonElement>,
-    index: number,
-  ) => {
+  const handleProductKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
     const count = availableProducts.length;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -141,53 +113,28 @@ export default function PosPage() {
     }
   };
 
-  const availableProducts = useMemo(() => {
-    return products.filter((product) => {
-      const matchesSearch = `${product.name} ${product.id}`
-        .toLowerCase()
-        .includes(search.toLowerCase());
-      const matchesCategory =
-        selectedCategory === 'All' || product.category === selectedCategory;
+  const availableProducts = useMemo(
+    () => products.filter((p) => {
+      const matchesSearch = `${p.name} ${p.id}`.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
       return matchesSearch && matchesCategory;
-    });
-  }, [products, search, selectedCategory]);
-
-  const categoryOptions = useMemo(
-    () => ['All', ...new Set(products.map((product) => product.category))],
-    [products],
+    }),
+    [products, search, selectedCategory],
   );
 
-  const canProceed = items.length > 0;
-  const cashReceivedNum = Number(cashReceived.replace(/\D/g, '')) || 0;
-  const change =
-    paymentMethod === 'cash' ? Math.max(0, cashReceivedNum - total) : 0;
-  const cashSufficient = paymentMethod !== 'cash' || cashReceivedNum >= total;
-  const invoice =
-    completedOrder?.invoice ??
-    `${settings.invoicePrefix.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-  const quickCashAmounts = useMemo(
-    () => [
-      ...new Set([
-        total,
-        Math.ceil(total / 10000) * 10000,
-        Math.ceil(total / 50000) * 50000,
-      ]),
-    ],
-    [total],
+  const categoryOptions = useMemo(
+    () => ['All', ...new Set(products.map((p) => p.category))],
+    [products],
   );
 
   const handleAddProduct = (productId: string) => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
-    if (product.stock <= 0) {
-      showInsufficientStockToast(`${product.name} is out of stock.`);
-      return;
-    }
-    const inCart = items.find((item) => item.id === productId);
+    const cartItems = useCartStore.getState().items;
+    if (product.stock <= 0) { showInsufficientStockToast(`${product.name} is out of stock.`); return; }
+    const inCart = cartItems.find((i) => i.id === productId);
     if (inCart && inCart.quantity >= product.stock) {
-      showInsufficientStockToast(
-        `${product.name} has only ${product.stock} available.`,
-      );
+      showInsufficientStockToast(`${product.name} has only ${product.stock} available.`);
       return;
     }
     addItem(product);
@@ -195,159 +142,21 @@ export default function PosPage() {
     setTimeout(() => setLastAddedId(null), 400);
   };
 
-  const handlePlaceOrder = async () => {
-    if (!canProceed || !cashSufficient) return;
-
-    const transactionId = `t-${Date.now()}`;
-    const transaction = {
-      id: transactionId,
-      invoice,
-      customer: customer || WALK_IN_CUSTOMER,
-      paymentMethod,
-      status: 'complete' as const,
-      subtotal,
-      discount,
-      tax: 0,
-      total,
-      cashier: 'Admin',
-      date:
-        'Today · ' +
-        new Date().toLocaleTimeString('id-ID', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      recordedAt: new Date().toISOString(),
-      items: items.map((item, index) => ({
-        id: `ti-${Date.now()}-${index}`,
-        transactionId,
-        productId: item.id,
-        name: item.name,
-        uom: item.uom ?? '',
-        description: item.description,
-        qty: item.quantity,
-        total: item.price * item.quantity,
-      })),
-    };
-
-    try {
-      await transactionsApi.create({
-        paymentMethod,
-        customer: customer || WALK_IN_CUSTOMER,
-        invoice,
-        cashier: 'Admin',
-        subtotal,
-        discount,
-        total,
-        items: items.map((item) => ({
-          id: item.id,
-          itemId: item.id,
-          name: item.name,
-          qty: item.quantity,
-          price: item.price,
-          total: item.price * item.quantity,
-        })),
-      });
-    } catch (error) {
-      if (
-        error instanceof ApiError &&
-        error.message.toLowerCase() === 'insufficient stock'
-      ) {
-        showInsufficientStockToast(
-          'One or more items no longer have enough stock. Review your cart and try again.',
-        );
-      } else {
-        console.error('Failed to sync POS transaction to backend:', error);
-        toast.error('Unable to place order', {
-          description:
-            error instanceof Error ? error.message : 'Please try again.',
-        });
-      }
-      return;
-    }
-
-    addTransaction(transaction);
-
-    // Decrement stock for every sold item
-    for (const item of items) {
-      decrementStock(item.id, item.quantity);
-    }
-
-    setCompletedOrder({
-      invoice,
-      total,
-      customer: customer || WALK_IN_CUSTOMER,
-      paymentMethod,
-    });
-    clearCart();
-    setStep(2);
-
-    toast.success(`Order ${invoice} placed`, {
-      description: `${formatRp(total)} · ${paymentMethod === 'cash' ? 'Cash' : 'QRIS'}`,
-    });
-  };
-
-  const handleNewOrder = () => {
-    setCompletedOrder(null);
-    setStep(0);
-    setCustomer(WALK_IN_CUSTOMER);
-    setPaymentMethod('cash');
-    setCashReceived('');
-    setFocusedProductIndex(-1);
-  };
-
-  const handleContinue = () => {
-    if (step === 0 && canProceed) setStep(1);
-    else if (step === 1 && cashSufficient) setStep(2);
-  };
-
-  const cartQty = items.reduce((sum, item) => sum + item.quantity, 0);
-
   return (
-    <div className="flex flex-col gap-5 md:h-[calc(100dvh-7.5rem)] xl:flex-row xl:gap-6">
-      <div className="flex rounded-[14px] border border-[var(--border)] bg-[var(--card)] p-1 xl:hidden">
-        <button
-          type="button"
-          onClick={() => setDesktopTab('products')}
-          className={`flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-semibold transition ${desktopTab === 'products' ? 'bg-[var(--band-bg)] text-[var(--band-text)]' : 'text-[var(--muted)] hover:bg-[var(--surface-muted)]'}`}
-        >
-          <Package size={16} />
-          Products
-        </button>
-        <button
-          type="button"
-          onClick={() => setDesktopTab('order')}
-          className={`flex flex-1 items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-semibold transition ${desktopTab === 'order' ? 'bg-[var(--band-bg)] text-[var(--band-text)]' : 'text-[var(--muted)] hover:bg-[var(--surface-muted)]'}`}
-        >
-          <ShoppingBag size={16} />
-          Current order
-          {cartQty > 0 && (
-            <span className="rounded-full bg-[var(--surface-accent)] px-2 py-0.5 text-xs text-[var(--accent)]">
-              {cartQty}
-            </span>
-          )}
-        </button>
-      </div>
+    <div className="flex h-[calc(100dvh-4rem)] flex-col overflow-hidden sm:h-[calc(100dvh-3.5rem)]">
 
-      {/* Product catalog */}
-      <section
-        className={`${desktopTab === 'products' ? 'flex' : 'hidden'} min-h-0 flex-1 flex-col gap-4 xl:flex`}
-      >
+      {/* ── Header ── */}
+      <div className="shrink-0">
         <PageHeader
           eyebrow="New sale"
           title="Point of sale"
           action={
             <label className="flex w-full items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-sm backdrop-blur-sm sm:w-auto sm:min-w-[240px]">
-              <Search
-                size={16}
-                className="shrink-0 text-[var(--band-text-muted)]"
-              />
+              <Search size={16} className="shrink-0 text-[var(--band-text-muted)]" />
               <input
                 ref={searchRef}
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setFocusedProductIndex(-1);
-                }}
+                onChange={(e) => { setSearch(e.target.value); setFocusedProductIndex(-1); }}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Search products…"
                 className="w-full bg-transparent text-[var(--band-text)] outline-none placeholder:text-[var(--band-text-muted)]"
@@ -359,582 +168,665 @@ export default function PosPage() {
             </label>
           }
         />
+      </div>
 
+      {/* ── Category filter ── */}
+      <div className="shrink-0 pt-3">
         <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {categoryOptions.map((category) => (
+          {categoryOptions.map((cat) => (
             <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
               className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition active:scale-95 ${
-                selectedCategory === category
-                  ? 'bg-[var(--accent-strong)] text-[var(--band-text)] shadow-sm'
+                selectedCategory === cat
+                  ? 'bg-[var(--accent-strong)] text-white shadow-sm'
                   : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:border-[var(--accent)]/40 hover:text-[var(--foreground)]'
               }`}
             >
-              {ITEM_CATEGORY_LABELS[category as keyof typeof ITEM_CATEGORY_LABELS] || 'All'}
+              {ITEM_TYPE_LABELS[cat as keyof typeof ITEM_TYPE_LABELS] ?? cat}
             </button>
           ))}
         </div>
+      </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+      {/* ── Product grid + cart panel side by side ── */}
+      <div className="flex min-h-0 flex-1 gap-4 pt-3">
+
+        {/* Product grid */}
+        <div className="flex-1 overflow-y-auto pr-1 pb-28 xl:pb-4">
           {isProductsLoading ? (
             <ProductGridSkeleton />
           ) : availableProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-[12px] border border-dashed border-[var(--border)] bg-[var(--card)] px-6 py-16 text-center">
               <Package size={32} className="text-[var(--muted)]" />
               <p className="mt-3 font-medium">No products found</p>
-              <p className="mt-1 max-w-xs text-sm text-[var(--muted)]">
-                Try a different search term or category filter.
-              </p>
+              <p className="mt-1 max-w-xs text-sm text-[var(--muted)]">Try a different search term or category filter.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-              {availableProducts.map((product, productIndex) => {
-                const inCart = items.find((item) => item.id === product.id);
-                const isHighlighted = lastAddedId === product.id;
-
-                return (
-                  <button
-                    key={product.id}
-                    ref={(el) => {
-                      productButtonRefs.current[productIndex] = el;
-                    }}
-                    onKeyDown={(e) => handleProductKeyDown(e, productIndex)}
-                    onClick={() => handleAddProduct(product.id)}
-                    disabled={product.stock <= 0}
-                    className={`group relative rounded-[12px] border bg-[var(--card)] p-4 text-left shadow-[0_0_0.5px_rgba(0,0,0,0.14),0_1px_1px_rgba(0,0,0,0.24)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
-                      isHighlighted
-                        ? 'border-[var(--accent-strong)] ring-2 ring-[var(--accent-strong)]/20'
-                        : 'border-[var(--border)] hover:border-[var(--accent)]/40'
-                    }`}
-                  >
-                    <>
-                      <Card>
-                        <img
-                          src="https://avatar.vercel.sh/shadcn1"
-                          alt="Event cover"
-                          className="relative z-20 aspect-video w-full object-cover brightness-60 grayscale dark:brightness-40"
-                        />
-                        <CardHeader>
-                          <CardAction>
-                            <Badge>Featured</Badge>
-                          </CardAction>
-                          <CardTitle>{product.name}</CardTitle>
-                          <CardDescription>
-                            {product.description}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardFooter>
-                          <Button 
-                            key={product.id}
-                            ref={(el) => {
-                              productButtonRefs.current[productIndex] = el;
-                            }}
-                            onKeyDown={(e) => handleProductKeyDown(e, productIndex)}
-                            onClick={() => handleAddProduct(product.id)}
-                            disabled={product.stock <= 0}
-                            className={`w-full ${isHighlighted
-                              ? 'border-[var(--accent-strong)] ring-2 ring-[var(--accent-strong)]/20'
-                              : 'border-[var(--border)] hover:border-[var(--accent)]/40'}`}
-                          >View Event</Button>
-                        </CardFooter>
-                      </Card>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-semibold group-hover:text-[var(--accent)]">
-                            {product.name}
-                          </p>
-                          <p className="mt-0.5 text-xs text-[var(--muted)]">
-                            {product.description}
-                          </p>
-                        </div>
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent-strong)] text-[var(--band-text)] opacity-0 transition group-hover:opacity-100">
-                          <Plus size={16} />
-                        </span>
-                      </div>
-
-                      <p className="mt-2 line-clamp-2 text-sm text-[var(--muted)]">
-                        {product.uom}
-                      </p>
-
-                      <div className="mt-3 flex items-center justify-between gap-2">
-                        <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-0.5 text-xs text-[var(--muted)]">
-                          {product.category}
-                        </span>
-                        <span className="font-semibold text-[var(--accent)]">
-                          {formatRp(product.price)}
-                        </span>
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between text-xs text-[var(--muted-2)]">
-                        <span>Stock {product.stock}</span>
-                        {inCart && (
-                          <span className="font-medium text-[var(--accent-strong)]">
-                            {inCart.quantity} in cart
-                          </span>
-                        )}
-                      </div>
-                    </>
-                  </button>
-                );
-              })}
+              {availableProducts.map((product, productIndex) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  inCartQty={useCartStore.getState().items.find((i) => i.id === product.id)?.quantity ?? 0}
+                  isHighlighted={lastAddedId === product.id}
+                  buttonRef={(el) => { productButtonRefs.current[productIndex] = el; }}
+                  onKeyDown={(e) => handleProductKeyDown(e, productIndex)}
+                  onAdd={() => handleAddProduct(product.id)}
+                />
+              ))}
             </div>
           )}
         </div>
-      </section>
 
-      {/* Cart & checkout panel */}
-      <aside
-        className={`${desktopTab === 'order' ? 'flex' : 'hidden'} w-full shrink-0 flex-col xl:w-[420px] xl:flex`}
-      >
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--card)] shadow-[0_0_0.5px_rgba(0,0,0,0.14),0_1px_1px_rgba(0,0,0,0.24)] md:sticky md:top-24 md:max-h-[calc(100dvh-7.5rem)]">
-          {/* Step indicator */}
-          <div className="border-b border-[var(--border)] px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ShoppingBag size={18} className="text-[var(--accent)]" />
-                <span className="font-semibold">Current order</span>
+        {/* Desktop cart panel — flex sibling, same height as product area */}
+        <div className="hidden min-h-0 w-[400px] shrink-0 xl:flex xl:flex-col">
+          <CartPanel
+            products={products}
+            storeId={storeId}
+            settings={settings}
+            navigate={navigate}
+          />
+        </div>
+      </div>
+
+      {/* Mobile cart drawer */}
+      <CartDrawer
+        products={products}
+        storeId={storeId}
+        settings={settings}
+        navigate={navigate}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Product card — shadcn Card, image as first child (largest highlight)
+// ---------------------------------------------------------------------------
+
+const PLACEHOLDER_IMG = 'https://upload.wikimedia.org/wikipedia/commons/4/4a/Croffles_5.jpg';
+
+function ProductCard({
+  product,
+  inCartQty,
+  isHighlighted,
+  buttonRef,
+  onKeyDown,
+  onAdd,
+}: {
+  product: Product;
+  inCartQty: number;
+  isHighlighted: boolean;
+  buttonRef: (el: HTMLButtonElement | null) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>) => void;
+  onAdd: () => void;
+}) {
+  const isOutOfStock = product.stock <= 0;
+
+  return (
+    <Card
+      className={`overflow-hidden transition-all ${
+        isHighlighted
+          ? 'ring-2 ring-[var(--accent-strong)] ring-offset-1'
+          : isOutOfStock
+            ? 'opacity-60'
+            : 'hover:ring-1 hover:ring-[var(--accent)]/40'
+      }`}
+    >
+      {/* Image — first child, shadcn card removes top padding automatically */}
+      <div className="relative aspect-video w-full overflow-hidden">
+        <img
+          src={PLACEHOLDER_IMG}
+          alt={product.name}
+          className="h-full w-full object-cover brightness-90 dark:brightness-75"
+        />
+        <span className="absolute right-2 top-2 rounded-full bg-[var(--card)]/90 px-2 py-0.5 text-sm font-bold text-[var(--accent)] shadow-sm backdrop-blur-sm">
+          {formatRp(product.price)}
+        </span>
+        {inCartQty > 0 && (
+          <span className="absolute left-2 top-2 rounded-full bg-[var(--accent-strong)] px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
+            {inCartQty} in cart
+          </span>
+        )}
+      </div>
+
+      <CardContent className="px-3 pt-2.5 pb-2">
+        <p className="truncate text-sm font-semibold leading-snug">{product.name}</p>
+        {product.description && (
+          <p className="mt-0.5 line-clamp-2 text-xs text-[var(--muted)]">{product.description}</p>
+        )}
+        <div className="mt-2 flex items-center justify-between gap-1">
+          <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
+            {ITEM_TYPE_LABELS[product.category as keyof typeof ITEM_TYPE_LABELS] ?? product.category}
+          </span>
+          <span className={`text-[11px] font-medium ${isOutOfStock ? 'text-[var(--status-danger)]' : 'text-[var(--muted)]'}`}>
+            {isOutOfStock ? 'Out of stock' : `Stock ${product.stock}`}
+          </span>
+        </div>
+      </CardContent>
+
+      <CardFooter className="border-t-0 bg-transparent p-0">
+        <button
+          ref={buttonRef}
+          type="button"
+          disabled={isOutOfStock}
+          onClick={onAdd}
+          onKeyDown={onKeyDown}
+          className={`flex w-full items-center justify-center gap-1.5 rounded-b-xl py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed ${
+            isOutOfStock
+              ? 'bg-[var(--surface-muted)] text-[var(--muted)]'
+              : isHighlighted
+                ? 'bg-[var(--accent-strong)] text-white'
+                : 'bg-[var(--accent-strong)] text-white hover:bg-[var(--accent)]'
+          }`}
+        >
+          {isOutOfStock ? 'Out of stock' : <><Plus size={14} /> Add to cart</>}
+        </button>
+      </CardFooter>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shared cart/checkout logic — used by both CartPanel and CartDrawer
+// ---------------------------------------------------------------------------
+
+type CheckoutProps = {
+  products: Product[];
+  storeId: string | undefined;
+  settings: { invoicePrefix: string };
+  navigate: ReturnType<typeof useNavigate>;
+};
+
+function useCheckout({ products, storeId, settings, navigate }: CheckoutProps) {
+  const { items, subtotal, discount, total, removeItem, updateQty, clearCart } = useCartStore();
+  const createTransactionMutation = useCreatePOSTransactionMutation();
+
+  const [step, setStep] = useState<PaymentStep>(0);
+  const [customer, setCustomer] = useState(WALK_IN_CUSTOMER);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>('cash');
+  const [cashReceived, setCashReceived] = useState('');
+  const [completedOrder, setCompletedOrder] = useState<{
+    invoice: string; total: number; customer: string; paymentMethod: 'cash' | 'qris';
+  } | null>(null);
+
+  const cartQty = items.reduce((s, i) => s + i.quantity, 0);
+  const cashReceivedNum = Number(cashReceived.replace(/\D/g, '')) || 0;
+  const change = paymentMethod === 'cash' ? Math.max(0, cashReceivedNum - total) : 0;
+  const cashSufficient = paymentMethod !== 'cash' || cashReceivedNum >= total;
+  const canProceed = items.length > 0;
+
+  const invoice =
+    completedOrder?.invoice ??
+    `${settings.invoicePrefix.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  const quickCashAmounts = useMemo(
+    () => [...new Set([total, Math.ceil(total / 10000) * 10000, Math.ceil(total / 50000) * 50000])],
+    [total],
+  );
+
+  const handleIncQty = (id: string, currentQty: number) => {
+    const product = products.find((p) => p.id === id);
+    if (product && currentQty >= product.stock) {
+      showInsufficientStockToast(`${product.name} has only ${product.stock} available.`);
+      return;
+    }
+    updateQty(id, currentQty + 1);
+  };
+
+  const handlePlaceOrder = async () => {
+    if (!canProceed || !cashSufficient) return;
+    if (!storeId) {
+      toast.error('No active store selected', {
+        description: 'Select a store before creating a POS transaction.',
+        action: { label: 'Select store', onClick: () => void navigate('/select-store') },
+      });
+      return;
+    }
+    try {
+      await createTransactionMutation.mutateAsync({
+        paymentMethod,
+        customer: customer || WALK_IN_CUSTOMER,
+        posSessionId: '',
+        items: items.map((item) => ({
+          itemId: item.id,
+          qty: item.quantity,
+        })),
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.message.toLowerCase().includes('insufficient stock')) {
+        showInsufficientStockToast('One or more items no longer have enough stock. Review your cart and try again.');
+      } else {
+        toast.error('Unable to place order', {
+          description: error instanceof Error ? error.message : 'Please try again.',
+        });
+      }
+      return;
+    }
+    setCompletedOrder({ invoice, total, customer: customer || WALK_IN_CUSTOMER, paymentMethod });
+    clearCart();
+    setStep(2);
+    toast.success(`Order ${invoice} placed`, {
+      description: `${formatRp(total)} · ${paymentMethod === 'cash' ? 'Cash' : 'QRIS'}`,
+    });
+  };
+
+  const handleNewOrder = () => {
+    setCompletedOrder(null); setStep(0);
+    setCustomer(WALK_IN_CUSTOMER); setPaymentMethod('cash'); setCashReceived('');
+  };
+
+  const handleContinue = () => {
+    if (step === 0 && canProceed) setStep(1);
+    else if (step === 1 && cashSufficient) setStep(2);
+  };
+
+  return {
+    items, subtotal, discount, total, cartQty,
+    removeItem, updateQty, clearCart,
+    step, setStep,
+    customer, setCustomer,
+    paymentMethod, setPaymentMethod,
+    cashReceived, setCashReceived, cashReceivedNum, change, cashSufficient, canProceed,
+    invoice, quickCashAmounts,
+    completedOrder,
+    handleIncQty, handlePlaceOrder, handleNewOrder, handleContinue,
+    isPending: createTransactionMutation.isPending,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Cart content — shared JSX between panel and drawer
+// ---------------------------------------------------------------------------
+
+function CartContent({
+  checkout,
+  products,
+  isDesktop = false,
+}: {
+  checkout: ReturnType<typeof useCheckout>;
+  products: Product[];
+  isDesktop?: boolean;
+}) {
+  const {
+    items, subtotal, discount, total, removeItem, updateQty, clearCart,
+    step, setStep,
+    customer, setCustomer, paymentMethod, setPaymentMethod,
+    cashReceived, setCashReceived, cashReceivedNum, change, cashSufficient, canProceed,
+    invoice, quickCashAmounts, completedOrder,
+    handleIncQty, handlePlaceOrder, handleNewOrder, handleContinue,
+    isPending,
+  } = checkout;
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Header — dark band on mobile drawer, light surface on desktop */}
+      <div className={`shrink-0 px-4 py-4 ${
+        isDesktop
+          ? 'border-b border-[var(--border)] bg-[var(--surface-muted)]'
+          : 'bg-[var(--band-bg)] text-[var(--band-text)]'
+      }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShoppingBag size={16} className={isDesktop ? 'text-[var(--accent)]' : 'text-[var(--band-text-muted)]'} />
+            <span className={`text-sm font-semibold ${isDesktop ? 'text-[var(--foreground)]' : 'text-white'}`}>Current order</span>
+          </div>
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+            isDesktop
+              ? 'bg-[var(--surface-accent)] text-[var(--accent)]'
+              : 'bg-white/10 text-white'
+          }`}>
+            {checkout.cartQty} {checkout.cartQty === 1 ? 'item' : 'items'}
+          </span>
+        </div>
+        <div className="mt-4 flex gap-1">
+          {paymentSteps.map((label, index) => {
+            const isActive = step === index;
+            const isDone = step > index || (index === 2 && Boolean(completedOrder));
+            return (
+              <div key={label} className="flex flex-1 flex-col items-center gap-1.5">
+                <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition ${
+                  isDone
+                    ? 'bg-[var(--accent-strong)] text-white'
+                    : isActive
+                      ? isDesktop ? 'bg-[var(--accent)] text-white' : 'bg-white text-[var(--band-bg)]'
+                      : isDesktop ? 'bg-[var(--border)] text-[var(--muted)]' : 'bg-white/10 text-white/50'
+                }`}>
+                  {isDone ? <CheckCircle2 size={14} /> : index + 1}
+                </div>
+                <span className={`text-[11px] font-medium ${
+                  isActive
+                    ? isDesktop ? 'text-[var(--foreground)]' : 'text-white'
+                    : isDesktop ? 'text-[var(--muted)]' : 'text-white/50'
+                }`}>
+                  {label}
+                </span>
               </div>
-              <span className="rounded-full bg-[var(--surface-accent)] px-2.5 py-0.5 text-xs font-semibold text-[var(--accent)]">
-                {cartQty} {cartQty === 1 ? 'item' : 'items'}
-              </span>
-            </div>
+            );
+          })}
+        </div>
+      </div>
 
-            <div className="mt-3 flex gap-1">
-              {paymentSteps.map((label, index) => {
-                const isActive = step === index;
-                const isDone = step > index || (index === 2 && completedOrder);
-                return (
-                  <div
-                    key={label}
-                    className="flex flex-1 flex-col items-center gap-1"
-                  >
-                    <div
-                      className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition ${
-                        isDone
-                          ? 'bg-[var(--accent-strong)] text-[var(--band-text)]'
-                          : isActive
-                            ? 'bg-[var(--accent)] text-[var(--band-text)]'
-                            : 'bg-[var(--surface-muted)] text-[var(--muted)]'
-                      }`}
-                    >
-                      {isDone ? <CheckCircle2 size={14} /> : index + 1}
-                    </div>
-                    <span
-                      className={`text-[11px] font-medium ${isActive ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}
-                    >
-                      {label}
-                    </span>
-                  </div>
-                );
-              })}
+      {/* Scrollable body */}
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {completedOrder && step === 2 ? (
+          <div className="flex flex-col items-center py-6 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--surface-accent)] text-[var(--accent-strong)]">
+              <CheckCircle2 size={32} />
+            </div>
+            <h2 className="mt-4 text-lg font-semibold">Payment successful</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">Invoice {completedOrder.invoice} generated.</p>
+            <div className="mt-6 w-full rounded-[12px] bg-[var(--surface-muted)] p-4 text-left text-sm">
+              <Row label="Customer" value={completedOrder.customer} />
+              <Row label="Payment" value={completedOrder.paymentMethod === 'cash' ? 'Cash' : 'QRIS'} className="mt-2" />
+              <div className="mt-2 flex justify-between border-t border-[var(--border)] pt-2">
+                <span className="font-semibold">Total paid</span>
+                <span className="font-semibold text-[var(--accent)]">{formatRp(completedOrder.total)}</span>
+              </div>
             </div>
           </div>
-
-          {/* Scrollable content */}
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            {completedOrder && step === 2 ? (
-              <div className="flex flex-col items-center py-6 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--surface-accent)] text-[var(--accent-strong)]">
-                  <CheckCircle2 size={32} />
-                </div>
-                <h2 className="mt-4 text-lg font-semibold">
-                  Payment successful
-                </h2>
-                <p className="mt-1 text-sm text-[var(--muted)]">
-                  Invoice {completedOrder.invoice} has been generated.
-                </p>
-                <div className="mt-6 w-full rounded-[12px] bg-[var(--surface-muted)] p-4 text-left text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-[var(--muted)]">Customer</span>
-                    <span className="font-medium">
-                      {completedOrder.customer}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex justify-between">
-                    <span className="text-[var(--muted)]">Payment</span>
-                    <span className="font-medium">
-                      {completedOrder.paymentMethod === 'cash'
-                        ? 'Cash'
-                        : 'QRIS'}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex justify-between border-t border-[var(--border)] pt-2">
-                    <span className="font-semibold">Total paid</span>
-                    <span className="font-semibold text-[var(--accent)]">
-                      {formatRp(completedOrder.total)}
-                    </span>
-                  </div>
-                </div>
+        ) : step === 0 ? (
+          items.length === 0 ? (
+            <div className="flex flex-col items-center py-12 text-center">
+              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--muted)]">
+                <ShoppingBag size={32} />
               </div>
-            ) : step === 0 ? (
-              <>
-                {items.length === 0 ? (
-                  <div className="flex flex-col items-center py-12 text-center">
-                    <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--muted)]">
-                      <ShoppingBag size={32} />
+              <p className="font-semibold">Your cart is empty</p>
+              <p className="mt-1.5 max-w-[220px] text-sm text-[var(--muted)]">Tap any product to add it to this order.</p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {items.map((item) => (
+                <li key={item.id} className="rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)]/50 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{item.name}</p>
+                      <p className="text-xs text-[var(--muted)]">{formatRp(item.price)} each</p>
                     </div>
-                    <p className="font-semibold">Your cart is empty</p>
-                    <p className="mt-1.5 max-w-[220px] text-sm text-[var(--muted)]">
-                      Tap any product to add it to this order. Use{' '}
-                      <kbd className="inline-flex items-center gap-0.5 rounded border border-[var(--border)] px-1 py-0.5 text-[10px] font-semibold">
-                        <Keyboard size={9} />K
-                      </kbd>{' '}
-                      to search.
-                    </p>
-                    {availableProducts.length > 0 && (
-                      <button
-                        onClick={() =>
-                          handleAddProduct(availableProducts[0].id)
-                        }
-                        className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-1.5 text-xs font-medium transition hover:border-[var(--accent)]/40 hover:text-[var(--accent)] active:scale-95"
-                      >
-                        <Plus size={12} />
-                        Try {availableProducts[0].name}
+                    <button onClick={() => removeItem(item.id)} className="shrink-0 rounded-full p-1.5 text-[var(--muted)] transition hover:text-[var(--status-danger)]" aria-label={`Remove ${item.name}`}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => updateQty(item.id, Math.max(0, item.quantity - 1))} className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] transition active:scale-95" aria-label="Decrease">
+                        <Minus size={14} />
                       </button>
-                    )}
-                  </div>
-                ) : (
-                  <ul className="space-y-2">
-                    {items.map((item) => (
-                      <li
-                        key={item.id}
-                        className="rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)]/50 p-3"
+                      <span className="min-w-[2rem] text-center text-sm font-semibold">{item.quantity}</span>
+                      <button
+                        onClick={() => handleIncQty(item.id, item.quantity)}
+                        disabled={products.find((p) => p.id === item.id)?.stock === item.quantity}
+                        className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                        aria-label="Increase"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate font-medium">{item.name}</p>
-                            <p className="text-xs text-[var(--muted)]">
-                              {formatRp(item.price)} each
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => removeItem(item.id)}
-                            className="shrink-0 rounded-full p-1.5 text-[var(--muted)] transition hover:bg-[var(--card)] hover:text-[var(--status-danger)]"
-                            aria-label={`Remove ${item.name}`}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                        <div className="mt-2.5 flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() =>
-                                updateQty(
-                                  item.id,
-                                  Math.max(0, item.quantity - 1),
-                                )
-                              }
-                              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] transition active:scale-95"
-                              aria-label="Decrease quantity"
-                            >
-                              <Minus size={14} />
-                            </button>
-                            <span className="min-w-[2rem] text-center text-sm font-semibold">
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() => {
-                                const product = products.find(
-                                  (candidate) => candidate.id === item.id,
-                                );
-                                if (product && item.quantity >= product.stock) {
-                                  showInsufficientStockToast(
-                                    `${item.name} has only ${product.stock} available.`,
-                                  );
-                                  return;
-                                }
-                                updateQty(item.id, item.quantity + 1);
-                              }}
-                              disabled={
-                                products.find(
-                                  (product) => product.id === item.id,
-                                )?.stock === item.quantity
-                              }
-                              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                              aria-label="Increase quantity"
-                            >
-                              <Plus size={14} />
-                            </button>
-                          </div>
-                          <p className="font-semibold">
-                            {formatRp(item.price * item.quantity)}
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            ) : step === 1 ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-[var(--muted)]">
-                    <User size={14} />
-                    Customer name
-                    <span className="text-xs font-normal">(optional)</span>
-                  </label>
-                  <input
-                    value={customer}
-                    onChange={(e) => setCustomer(e.target.value)}
-                    placeholder="Walk-in customer"
-                    className="w-full rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
-                  />
-                </div>
-
-                <div>
-                  <p className="mb-2 text-sm font-medium text-[var(--muted)]">
-                    Payment method
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => setPaymentMethod('cash')}
-                      className={`rounded-[12px] border p-3 text-left transition active:scale-[0.98] ${
-                        paymentMethod === 'cash'
-                          ? 'border-[var(--accent-strong)] bg-[var(--surface-accent)]'
-                          : 'border-[var(--border)] bg-[var(--surface-muted)]/50 hover:border-[var(--accent)]/30'
-                      }`}
-                    >
-                      <CreditCard
-                        size={18}
-                        className={
-                          paymentMethod === 'cash'
-                            ? 'text-[var(--accent-strong)]'
-                            : 'text-[var(--muted)]'
-                        }
-                      />
-                      <p className="mt-2 text-sm font-semibold">Cash</p>
-                      <p className="text-xs text-[var(--muted)]">
-                        Pay at counter
-                      </p>
-                    </button>
-                    <button
-                      onClick={() => setPaymentMethod('qris')}
-                      className={`rounded-[12px] border p-3 text-left transition active:scale-[0.98] ${
-                        paymentMethod === 'qris'
-                          ? 'border-[var(--accent-strong)] bg-[var(--surface-accent)]'
-                          : 'border-[var(--border)] bg-[var(--surface-muted)]/50 hover:border-[var(--accent)]/30'
-                      }`}
-                    >
-                      <QrCode
-                        size={18}
-                        className={
-                          paymentMethod === 'qris'
-                            ? 'text-[var(--accent-strong)]'
-                            : 'text-[var(--muted)]'
-                        }
-                      />
-                      <p className="mt-2 text-sm font-semibold">QRIS</p>
-                      <p className="text-xs text-[var(--muted)]">Scan to pay</p>
-                    </button>
-                  </div>
-                </div>
-
-                {paymentMethod === 'cash' ? (
-                  <div className="space-y-3 rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)]/50 p-4">
-                    <label className="flex items-center gap-1.5 text-sm font-medium text-[var(--muted)]">
-                      <Banknote size={14} />
-                      Cash received
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={cashReceived}
-                      onChange={(e) =>
-                        setCashReceived(e.target.value.replace(/\D/g, ''))
-                      }
-                      placeholder="0"
-                      className="w-full rounded-[12px] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-lg font-semibold outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      {quickCashAmounts.map((amount) => (
-                        <button
-                          key={amount}
-                          onClick={() => setCashReceived(String(amount))}
-                          className="rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs font-medium transition hover:border-[var(--accent)]/40 active:scale-95"
-                        >
-                          {formatRp(amount)}
-                        </button>
-                      ))}
+                        <Plus size={14} />
+                      </button>
                     </div>
-                    {cashReceivedNum > 0 && (
-                      <div
-                        className={`flex items-center justify-between rounded-[12px] px-3 py-2 text-sm ${
-                          cashSufficient
-                            ? 'bg-[var(--surface-accent)] text-[var(--accent)]'
-                            : 'bg-[var(--status-danger)]/10 text-[var(--status-danger)]'
-                        }`}
-                      >
-                        <span>
-                          {cashSufficient ? 'Change' : 'Insufficient cash'}
-                        </span>
-                        <span className="font-semibold">
-                          {cashSufficient
-                            ? formatRp(change)
-                            : formatRp(total - cashReceivedNum)}
-                        </span>
-                      </div>
-                    )}
+                    <p className="text-sm font-semibold">{formatRp(item.price * item.quantity)}</p>
                   </div>
-                ) : (
-                  <div className="rounded-[12px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)]/50 p-6 text-center">
-                    <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--card)]">
-                      <QrCode size={48} className="text-[var(--muted)]" />
-                    </div>
-                    <p className="mt-3 text-sm font-medium">
-                      Scan QR code to pay
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--muted)]">
-                      Amount: {formatRp(total)}
-                    </p>
-                    <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--status-success)]/15 px-3 py-1 text-xs font-semibold text-[var(--status-success)]">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--status-success)]" />
-                      Awaiting payment
-                    </span>
+                </li>
+              ))}
+            </ul>
+          )
+        ) : step === 1 ? (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-[var(--muted)]">
+                <User size={14} /> Customer name <span className="text-xs font-normal">(optional)</span>
+              </label>
+              <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Walk-in customer"
+                className="w-full rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15" />
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium text-[var(--muted)]">Payment method</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(['cash', 'qris'] as const).map((method) => (
+                  <button key={method} onClick={() => setPaymentMethod(method)}
+                    className={`rounded-[12px] border p-3 text-left transition active:scale-[0.98] ${paymentMethod === method ? 'border-[var(--accent-strong)] bg-[var(--surface-accent)]' : 'border-[var(--border)] bg-[var(--surface-muted)]/50 hover:border-[var(--accent)]/30'}`}>
+                    {method === 'cash' ? <CreditCard size={18} className={paymentMethod === 'cash' ? 'text-[var(--accent-strong)]' : 'text-[var(--muted)]'} /> :
+                      <QrCode size={18} className={paymentMethod === 'qris' ? 'text-[var(--accent-strong)]' : 'text-[var(--muted)]'} />}
+                    <p className="mt-2 text-sm font-semibold capitalize">{method}</p>
+                    <p className="text-xs text-[var(--muted)]">{method === 'cash' ? 'Pay at counter' : 'Scan to pay'}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {paymentMethod === 'cash' ? (
+              <div className="space-y-3 rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)]/50 p-4">
+                <label className="flex items-center gap-1.5 text-sm font-medium text-[var(--muted)]">
+                  <Banknote size={14} /> Cash received
+                </label>
+                <input type="text" inputMode="numeric" value={cashReceived}
+                  onChange={(e) => setCashReceived(e.target.value.replace(/\D/g, ''))} placeholder="0"
+                  className="w-full rounded-[12px] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-lg font-semibold outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15" />
+                <div className="flex flex-wrap gap-2">
+                  {quickCashAmounts.map((amount) => (
+                    <button key={amount} onClick={() => setCashReceived(String(amount))}
+                      className="rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs font-medium transition hover:border-[var(--accent)]/40 active:scale-95">
+                      {formatRp(amount)}
+                    </button>
+                  ))}
+                </div>
+                {cashReceivedNum > 0 && (
+                  <div className={`flex items-center justify-between rounded-[12px] px-3 py-2 text-sm ${cashSufficient ? 'bg-[var(--surface-accent)] text-[var(--accent)]' : 'bg-[var(--status-danger)]/10 text-[var(--status-danger)]'}`}>
+                    <span>{cashSufficient ? 'Change' : 'Insufficient cash'}</span>
+                    <span className="font-semibold">{cashSufficient ? formatRp(change) : formatRp(total - cashReceivedNum)}</span>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="space-y-3">
-                <div className="rounded-[12px] bg-[var(--surface-muted)] p-4 text-sm">
-                  <div className="flex items-center gap-2 text-[var(--muted)]">
-                    <Receipt size={14} />
-                    <span>Order summary</span>
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-[var(--muted)]">Invoice</span>
-                      <span className="font-medium">{invoice}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[var(--muted)]">Customer</span>
-                      <span className="font-medium">
-                        {customer || 'Walk-in'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[var(--muted)]">Payment</span>
-                      <span className="font-medium">
-                        {paymentMethod === 'cash' ? 'Cash' : 'QRIS'}
-                      </span>
-                    </div>
-                    {paymentMethod === 'cash' && cashReceivedNum > 0 && (
-                      <>
-                        <div className="flex justify-between">
-                          <span className="text-[var(--muted)]">
-                            Cash received
-                          </span>
-                          <span className="font-medium">
-                            {formatRp(cashReceivedNum)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-[var(--muted)]">Change</span>
-                          <span className="font-medium">
-                            {formatRp(change)}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </div>
+              <div className="rounded-[12px] border border-dashed border-[var(--border)] bg-[var(--surface-muted)]/50 p-6 text-center">
+                <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-[12px] border border-[var(--border)] bg-[var(--card)]">
+                  <QrCode size={48} className="text-[var(--muted)]" />
                 </div>
-
-                <ul className="space-y-2">
-                  {items.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex items-center justify-between rounded-[12px] border border-[var(--border)] px-3 py-2.5 text-sm"
-                    >
-                      <div>
-                        <p className="font-medium">{item.name}</p>
-                        <p className="text-xs text-[var(--muted)]">
-                          × {item.quantity}
-                        </p>
-                      </div>
-                      <span className="font-semibold">
-                        {formatRp(item.price * item.quantity)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <p className="mt-3 text-sm font-medium">Scan QR code to pay</p>
+                <p className="mt-1 text-xs text-[var(--muted)]">Amount: {formatRp(total)}</p>
+                <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--status-success)]/15 px-3 py-1 text-xs font-semibold text-[var(--status-success)]">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--status-success)]" /> Awaiting payment
+                </span>
               </div>
             )}
           </div>
-
-          {/* Totals & actions — pinned bottom */}
-          <div className="border-t border-[var(--border)] bg-[var(--surface-muted)]/30 p-4">
-            <div className="space-y-1.5 text-sm">
-              <div className="flex justify-between text-[var(--muted)]">
-                <span>Subtotal</span>
-                <span>{formatRp(subtotal)}</span>
-              </div>
-              {discount > 0 && (
-                <div className="flex justify-between text-[var(--status-success)]">
-                  <span>Discount (10%)</span>
-                  <span>− {formatRp(discount)}</span>
-                </div>
-              )}
-              <div className="flex justify-between border-t border-[var(--border)] pt-2 text-base font-semibold">
-                <span>Total</span>
-                <span className="text-[var(--accent)]">{formatRp(total)}</span>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-[12px] bg-[var(--surface-muted)] p-4 text-sm">
+              <div className="flex items-center gap-2 text-[var(--muted)]"><Receipt size={14} /><span>Order summary</span></div>
+              <div className="mt-3 space-y-2">
+                <Row label="Invoice" value={invoice} />
+                <Row label="Customer" value={customer || 'Walk-in'} />
+                <Row label="Payment" value={paymentMethod === 'cash' ? 'Cash' : 'QRIS'} />
+                {paymentMethod === 'cash' && cashReceivedNum > 0 && <>
+                  <Row label="Cash received" value={formatRp(cashReceivedNum)} />
+                  <Row label="Change" value={formatRp(change)} />
+                </>}
               </div>
             </div>
+            <ul className="space-y-2">
+              {items.map((item) => (
+                <li key={item.id} className="flex items-center justify-between rounded-[12px] border border-[var(--border)] px-3 py-2.5 text-sm">
+                  <div><p className="font-medium">{item.name}</p><p className="text-xs text-[var(--muted)]">× {item.quantity}</p></div>
+                  <span className="font-semibold">{formatRp(item.price * item.quantity)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
 
-            <div className="mt-4 flex gap-2">
-              {completedOrder && step === 2 ? (
-                <AppButton variant="primary" onClick={handleNewOrder}>
-                  <RotateCcw size={16} className="mr-2 inline" />
-                  New order
-                </AppButton>
-              ) : (
-                <>
-                  {step > 0 && (
-                    <AppButton
-                      variant="secondary"
-                      onClick={() => setStep(step - 1)}
-                    >
-                      Back
-                    </AppButton>
-                  )}
-                  {step === 0 && items.length > 0 && (
-                    <AppButton variant="secondary" onClick={clearCart}>
-                      Clear
-                    </AppButton>
-                  )}
-                  {step < 2 ? (
-                    <button
-                      disabled={
-                        (step === 0 && !canProceed) ||
-                        (step === 1 && !cashSufficient)
-                      }
-                      onClick={handleContinue}
-                      className="flex flex-1 items-center justify-center rounded-full bg-[var(--accent-strong)] px-4 py-2 text-sm font-semibold text-[var(--band-text)] transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {step === 0 ? 'Continue to payment' : 'Review order'}
-                      <ChevronRight size={16} className="ml-1" />
-                    </button>
-                  ) : (
-                    <AppButton variant="primary" onClick={handlePlaceOrder}>
-                      Place order
-                    </AppButton>
-                  )}
-                </>
-              )}
+      {/* Pinned footer */}
+      <div className="shrink-0 border-t border-[var(--border)] p-4">
+        {/* Totals */}
+        <div className="space-y-1 text-sm">
+          <div className="flex justify-between text-[var(--muted)]">
+            <span>Subtotal</span><span>{formatRp(subtotal)}</span>
+          </div>
+          {discount > 0 && (
+            <div className="flex justify-between text-[var(--status-success)]">
+              <span>Discount (10%)</span><span>− {formatRp(discount)}</span>
             </div>
-
-            {step === 1 && !cashSufficient && cashReceivedNum > 0 && (
-              <p className="mt-2 text-center text-xs text-[var(--status-danger)]">
-                Cash received must be at least {formatRp(total)}
-              </p>
-            )}
-            {step < 2 && !canProceed && step === 0 && (
-              <p className="mt-2 text-center text-xs text-[var(--muted)]">
-                Add at least one product to continue
-              </p>
+          )}
+        </div>
+        {/* Total + action on same row */}
+        <div className="mt-3 flex items-center gap-3">
+          <div className="flex min-w-0 flex-col">
+            <span className="text-xs text-[var(--muted)]">Total</span>
+            <span className="text-lg font-bold tracking-tight text-[var(--accent)]">{formatRp(total)}</span>
+          </div>
+          <div className="flex flex-1 gap-2">
+            {completedOrder && step === 2 ? (
+              <button onClick={handleNewOrder} className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white transition active:scale-95">
+                <RotateCcw size={14} /> New order
+              </button>
+            ) : (
+              <>
+                {step > 0 && (
+                  <AppButton variant="secondary" onClick={() => setStep((step - 1) as PaymentStep)}>Back</AppButton>
+                )}
+                {step === 0 && items.length > 0 && (
+                  <AppButton variant="secondary" onClick={clearCart}>Clear</AppButton>
+                )}
+                {step < 2 ? (
+                  <button
+                    disabled={(step === 0 && !canProceed) || (step === 1 && !cashSufficient)}
+                    onClick={handleContinue}
+                    className="flex flex-1 items-center justify-center gap-1 rounded-full bg-[var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {step === 0 ? 'Continue to payment' : 'Review order'}<ChevronRight size={16} />
+                  </button>
+                ) : (
+                  <button
+                    disabled={isPending}
+                    onClick={() => void handlePlaceOrder()}
+                    className="flex flex-1 items-center justify-center gap-1 rounded-full bg-[var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isPending ? 'Placing…' : 'Place order'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
-      </aside>
+        {step === 1 && !cashSufficient && cashReceivedNum > 0 && (
+          <p className="mt-2 text-center text-xs text-[var(--status-danger)]">Cash received must be at least {formatRp(total)}</p>
+        )}
+        {step === 0 && !canProceed && (
+          <p className="mt-2 text-center text-xs text-[var(--muted)]">Add at least one product to continue</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Desktop cart panel — fixed to right side, doesn't scroll with products
+// ---------------------------------------------------------------------------
+
+function CartPanel(props: CheckoutProps) {
+  const checkout = useCheckout(props);
+  return (
+    <Card className="flex h-full flex-col overflow-hidden rounded-[14px] p-0">
+      <CartContent checkout={checkout} products={props.products} isDesktop />
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Mobile cart drawer — only renders when cart has items
+// ---------------------------------------------------------------------------
+
+function CartDrawer(props: CheckoutProps) {
+  const checkout = useCheckout(props);
+  const [open, setOpen] = useState(false);
+  const { cartQty, total } = checkout;
+
+  // Auto-close when cart empties
+  useEffect(() => {
+    if (cartQty === 0) setOpen(false);
+  }, [cartQty]);
+
+  // Only mount when there are items
+  if (cartQty === 0) return null;
+
+  return (
+    <>
+      {/* Backdrop */}
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm xl:hidden"
+          onClick={() => setOpen(false)}
+        />
+      )}
+
+      {/* Drawer */}
+      <div
+        className={`fixed inset-x-0 bottom-0 z-50 flex flex-col xl:hidden`}
+        style={{ maxHeight: '90dvh' }}
+      >
+        {/* Collapsed bar — always visible when cart has items */}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full items-center gap-3 rounded-t-[20px] border border-b-0 border-[var(--border)] bg-[var(--band-bg)] px-4 py-3 text-left shadow-[0_-4px_24px_rgba(0,0,0,0.18)]"
+        >
+          {/* Drag handle */}
+          <span className="absolute left-1/2 top-2 h-1 w-10 -translate-x-1/2 rounded-full bg-white/20" />
+
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white/10 text-white">
+            <ShoppingBag size={17} />
+          </span>
+
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-white">Current order</span>
+              <span className="rounded-md bg-[var(--accent-strong)] px-1.5 py-0.5 text-[11px] font-bold text-white">
+                {cartQty}
+              </span>
+            </span>
+            <span className="block text-[11px] text-white/60">
+              Tap to {open ? 'collapse' : 'checkout'}
+            </span>
+          </span>
+
+          {/* Total — far right */}
+          <span className="shrink-0 text-right">
+            <span className="block text-base font-bold text-white">{formatRp(total)}</span>
+          </span>
+
+          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
+            <ChevronUp size={16} />
+          </span>
+        </button>
+
+        {/* Expanded content */}
+        {open && (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-x border-[var(--border)] bg-[var(--card)]">
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--border)] px-4 py-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Order details</span>
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-full p-1 text-[var(--muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <CartContent checkout={checkout} products={props.products} />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function Row({ label, value, className = '' }: { label: string; value: string; className?: string }) {
+  return (
+    <div className={`flex justify-between ${className}`}>
+      <span className="text-[var(--muted)]">{label}</span>
+      <span className="font-medium">{value}</span>
     </div>
   );
 }

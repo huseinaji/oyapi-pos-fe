@@ -1,4 +1,4 @@
-import type { Transaction } from '../types/inde';
+import type { Transaction } from '#lib/transaction/transaction-types';
 
 export type TransactionFilters = {
   query: string;

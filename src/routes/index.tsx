@@ -3,12 +3,17 @@ import ForgotPasswordPage from '@/pages/forgot-password';
 import Login from '@/pages/Login';
 import PosPage from '@/pages/pos';
 import ProductsPage from '@/pages/product';
+import ProductDetailPage from '@/pages/product-detail';
 import SelectStorePage from '@/pages/select-store';
 import SettingsPage from '@/pages/setting';
 import TransactionDetailPage from '@/pages/transaction-detail';
 import TransactionPrintPage from '@/pages/transaction-print';
 import TransactionsPage from '@/pages/transactions';
 import UsersPage from '@/pages/user';
+import StockLedgerPage from '@/pages/stock-ledger';
+import StockAdjustmentPage from '@/pages/stock-adjustment';
+import ItemCategoriesPage from '@/pages/item-categories';
+import CashierSessionsPage from '@/pages/cashier-sessions';
 import { useAuthStore, useMeQuery } from '#lib/auth/auth-store';
 import { useEffect, type FC } from 'react';
 import { Navigate, Route, Routes } from 'react-router';
@@ -68,10 +73,15 @@ export const RoutesIndex: FC = () => {
               <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/pos" element={<PosPage />} />
+                <Route path="/cashier-sessions" element={<CashierSessionsPage />} />
                 <Route path="/products" element={<ProductsPage />} />
+                <Route path="/products/:id" element={<ProductDetailPage />} />
+                <Route path="/item-categories" element={<ItemCategoriesPage />} />
+                <Route path="/stock-ledger" element={<StockLedgerPage />} />
+                <Route path="/stock-adjustment" element={<StockAdjustmentPage />} />
                 <Route path="/users" element={<UsersPage />} />
                 <Route path="/transactions" element={<TransactionsPage />} />
-                <Route path="/transactions/detail/:id" element={<TransactionDetailPage />} />
+                <Route path="/transactions/:id" element={<TransactionDetailPage />} />
                 <Route path="/transactions/print/:id" element={<TransactionPrintPage />} />
                 <Route path="/setting" element={<SettingsPage />} />
               </Routes>

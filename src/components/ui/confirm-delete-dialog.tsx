@@ -1,5 +1,3 @@
-'use client';
-
 import { AlertTriangle } from 'lucide-react';
 import { AppButton } from './app-button';
 import { AppDialog } from './app-dialog';

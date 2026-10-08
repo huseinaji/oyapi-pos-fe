@@ -1,8 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient, clearSession } from '../api-client';
 import type { ApiUser, ApiUserRole, ApiUserStatus, LoginDto } from '../../types/api';
 import { createStore } from '../store-utils';
-import { Api } from '#lib/api/index';
 import { AuthApi } from '#lib/auth/login-api';
 import type { StorePayload } from '#lib/stores/store-types';
 
@@ -15,38 +13,11 @@ export type AuthUser = {
   store?: StorePayload;
 };
 
-/** GET /api/v1/auth/me — response */
-type UserPayload = {
-  sub: string;
-  username: string;
-  email: string;
-  role: ApiUserRole;
-  status: ApiUserStatus;
-  store?: StorePayload
-}
-
-export type AuthMeResponse = {
-  userPayload: UserPayload;
-  rememberMe: boolean;
-};
-
 type AuthState = {
   currentUser: AuthUser | null;
   isAuthenticated: boolean;
   setUser: (user: AuthUser | null) => void;
 };
-
-function mapUser(me: AuthMeResponse): AuthUser {
-  const userPayload = me.userPayload;
-  return {
-    id: userPayload.sub,
-    username: userPayload.username,
-    email: userPayload.email,
-    role: userPayload.role,
-    status: userPayload.status,
-    store: userPayload.store,
-  };
-}
 
 const store = createStore<AuthState>({
   currentUser: null,
@@ -64,15 +35,11 @@ export const authQueryKeys = {
   me: ['auth', 'me'],
 } as const;
 
-export async function fetchMe(): Promise<AuthUser> {
-  const me = await Api.get('/api/v1/auth/me');
-  return mapUser(me.data);
-}
 
 export function useMeQuery() {
   return useQuery({
     queryKey: authQueryKeys.me,
-    queryFn: fetchMe,
+    queryFn: AuthApi.me,
     retry: false,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
@@ -84,7 +51,6 @@ export function useLoginMutation() {
 
   return useMutation({
     mutationFn: async (dto: LoginDto) => {
-      await AuthApi.getCsrfToken();
       await AuthApi.login(dto);
 
       const user = await AuthApi.me();
@@ -112,11 +78,7 @@ export function useLogoutMutation() {
 
   return useMutation({
     mutationFn: async () => {
-      try {
-        await apiClient.post('/api/v1/auth/logout');
-      } finally {
-        clearSession();
-      }
+      await AuthApi.logout();
     },
     onSuccess: () => {
       store.setState({
@@ -128,7 +90,6 @@ export function useLogoutMutation() {
       window.location.href = '/login';
     },
     onError: () => {
-      clearSession();
       store.setState({
         currentUser: null,
         isAuthenticated: false,
@@ -140,6 +101,7 @@ export function useLogoutMutation() {
 }
 
 export const authStore = {
+  getCurrentUser: () => store.getState().currentUser,
   setUser: (user: ApiUser | null) => store.getState().setUser(
     user
       ? {

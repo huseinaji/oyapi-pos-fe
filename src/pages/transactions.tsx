@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Search,
@@ -19,11 +19,20 @@ import { AppButton } from '../components/ui/app-button';
 import { ConfirmDeleteDialog } from '../components/ui/confirm-delete-dialog';
 import { DateRangePicker } from '../components/ui/date-range-picker';
 import { PageHeader } from '../components/ui/page-header';
-import { Pagination } from '../components/ui/pagination';
 import { RowActions } from '../components/ui/row-actions';
 import { SectionCard } from '../components/ui/section-card';
 import { AppSelect } from '../components/ui/app-select';
-import { usePagination } from '../hooks/use-pagination';
+import { DataTable } from '#components/ui/data-table';
+import { TanStackTablePagination } from '#components/ui/tanstack-table-pagination';
+import {
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type PaginationState,
+  type SortingState,
+} from '@tanstack/react-table';
 import {
   countActiveFilters,
   daysAgoIso,
@@ -36,15 +45,15 @@ import {
   type TransactionFilters,
 } from '../lib/transaction-utils';
 
-import type { Transaction } from '../types/inde';
+import type { Transaction } from '#lib/transaction/transaction-types';
 import { Link } from 'react-router';
-import { useTransactionStore } from '#lib/transaction/transaction-store';
+import {
+  useCompleteTransactionMutation,
+  useDeleteTransactionMutation,
+  useTransactionsQuery,
+} from '#lib/transaction/transaction-store'
 
 type DatePreset = 'all' | 'today' | 'week' | 'month' | 'custom';
-
-type SortField =
-  'invoice' | 'customer' | 'cashier' | 'payment' | 'status' | 'total' | 'date';
-type SortDir = 'asc' | 'desc';
 
 const datePresets: { id: DatePreset; label: string }[] = [
   { id: 'all', label: 'All time' },
@@ -55,21 +64,11 @@ const datePresets: { id: DatePreset; label: string }[] = [
 ];
 
 export default function TransactionsPage() {
-  const transactions = useTransactionStore((state) => state.transactions);
-  const fetchTransactions = useTransactionStore(
-    (state) => state.fetchTransactions,
-  );
-  const deleteTransaction = useTransactionStore(
-    (state) => state.deleteTransaction,
-  );
-  const completeTransaction = useTransactionStore(
-    (state) => state.completeTransaction,
-  );
+  const transactionsQuery = useTransactionsQuery();
+  const deleteTransactionMutation = useDeleteTransactionMutation();
+  const completeTransactionMutation = useCompleteTransactionMutation();
+  const transactions = transactionsQuery.data ?? [];
   const navigate = useNavigate();
-
-  useEffect(() => {
-    void fetchTransactions();
-  }, [fetchTransactions]);
 
   const [filters, setFilters] = useState<TransactionFilters>(
     defaultTransactionFilters,
@@ -78,8 +77,13 @@ export default function TransactionsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingTx, setDeletingTx] = useState<Transaction | null>(null);
-  const [sortField, setSortField] = useState<SortField>('date');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'date', desc: true },
+  ]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
 
   const { customers, cashiers } = useMemo(
     () => getUniqueValues(transactions),
@@ -100,62 +104,16 @@ export default function TransactionsPage() {
     return {
       total: complete.reduce((sum, tx) => sum + tx.total, 0),
       count: filteredTransactions.length,
-      pending: filteredTransactions.filter((tx) => tx.status === 'pending')
-        .length,
+      pending: filteredTransactions.filter((tx) => tx.status === 'pending').length,
+      qris: filteredTransactions.filter(tx => tx.paymentMethod == 'qris').length,
+      cash: filteredTransactions.filter(tx => tx.paymentMethod == 'cash').length
     };
   }, [filteredTransactions]);
 
-  const sortedTransactions = useMemo(() => {
-    return [...filteredTransactions].sort((a, b) => {
-      let cmp = 0;
-      switch (sortField) {
-        case 'invoice':
-          cmp = a.invoice.localeCompare(b.invoice);
-          break;
-        case 'customer':
-          cmp = a.customer.localeCompare(b.customer);
-          break;
-        case 'cashier':
-          cmp = a.cashier.localeCompare(b.cashier);
-          break;
-        case 'payment':
-          cmp = a.paymentMethod.localeCompare(b.paymentMethod);
-          break;
-        case 'status':
-          cmp = a.status.localeCompare(b.status);
-          break;
-        case 'total':
-          cmp = a.total - b.total;
-          break;
-        case 'date':
-        default:
-          cmp =
-            new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime();
-      }
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-  }, [filteredTransactions, sortField, sortDir]);
-
-  const {
-    page,
-    totalPages,
-    totalItems,
-    pageSize,
-    paginatedItems: pageTransactions,
-    setPage,
-    setPageSize,
-    resetPage,
-  } = usePagination(sortedTransactions, 10);
-
-  const toggleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
-    resetPage();
-  };
+  const pageSize = pagination.pageSize;
+  const totalItems = filteredTransactions.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const resetPage = () => setPagination((current) => ({ ...current, pageIndex: 0 }));
 
   const updateFilter = <K extends keyof TransactionFilters>(
     key: K,
@@ -203,7 +161,7 @@ export default function TransactionsPage() {
   const handleDelete = async () => {
     if (!deletingTx) return;
     try {
-      await deleteTransaction(deletingTx.id);
+      await deleteTransactionMutation.mutateAsync(deletingTx.id);
       toast.success('Transaction deleted', {
         description: `${deletingTx.invoice} removed from records.`,
       });
@@ -220,7 +178,7 @@ export default function TransactionsPage() {
 
   const handleComplete = async (transaction: Transaction) => {
     try {
-      await completeTransaction(transaction.id);
+      await completeTransactionMutation.mutateAsync(transaction.id);
       toast.success('Transaction completed', {
         description: `${transaction.customer} is now complete.`,
       });
@@ -231,6 +189,152 @@ export default function TransactionsPage() {
       });
     }
   };
+
+  const desktopColumns = useMemo<ColumnDef<Transaction>[]>(() => [
+    { accessorKey: 'customer', header: 'Customer' },
+    { accessorKey: 'cashier', header: 'Cashier' },
+    {
+      accessorKey: 'paymentMethod',
+      header: 'Payment',
+      cell: ({ row }) => <PaymentBadge method={row.original.paymentMethod} />,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${statusStyles[row.original.status]}`}>
+          {row.original.status}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'total',
+      header: () => <span className="block text-right">Total</span>,
+      cell: ({ row }) => <div className="text-right font-semibold text-[var(--accent)]">{formatRp(row.original.total)}</div>,
+    },
+    {
+      accessorKey: 'recordedAt',
+      id: 'date',
+      header: 'Date',
+      cell: ({ row }) => <span className="text-[var(--muted)]">{row.original.date}</span>,
+    },
+    {
+      id: 'actions',
+      enableSorting: false,
+      header: 'Actions',
+      cell: ({ row }) => (
+        <div onClick={(event) => event.stopPropagation()}>
+          <RowActions
+            label={`Actions for ${row.original.invoice}`}
+            actions={[
+              { label: 'View', icon: Eye, href: `/transactions/${row.original.id}` },
+              ...(row.original.status === 'pending'
+                ? [{ label: 'Set complete', icon: CheckCircle2, onClick: () => void handleComplete(row.original) }]
+                : []),
+              { label: 'Delete', icon: Trash2, danger: true, onClick: () => openDelete(row.original) },
+            ]}
+          />
+        </div>
+      ),
+    },
+  ], [handleComplete, openDelete]);
+  const mobileColumns = useMemo<ColumnDef<Transaction>[]>(() => [
+    {
+      accessorKey: 'customer',
+      header: 'Customer',
+      cell: ({ row }) => (
+        <div className="min-w-0 overflow-hidden">
+          <p className="truncate text-sm font-semibold">{row.original.customer}</p>
+          <p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{row.original.cashier} · {row.original.date}</p>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${statusStyles[row.original.status]}`}>
+          {row.original.status}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'total',
+      header: 'Total',
+      cell: ({ row }) => (
+        <div className="overflow-hidden">
+          <p className="whitespace-nowrap text-sm font-semibold text-[var(--accent)]">{formatRp(row.original.total)}</p>
+          <div className="mt-0.5"><PaymentBadge method={row.original.paymentMethod} /></div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'recordedAt',
+      id: 'date',
+      header: 'Date',
+      enableHiding: true,
+      cell: ({ row }) => row.original.recordedAt,
+    },
+    {
+      id: 'actions',
+      enableSorting: false,
+      header: '',
+      cell: ({ row }) => (
+        <div className="text-right" onClick={(event) => event.stopPropagation()}>
+          <RowActions
+            label={`Actions for ${row.original.invoice}`}
+            actions={[
+              { label: 'View', icon: Eye, href: `/transactions/${row.original.id}` },
+              ...(row.original.status === 'pending'
+                ? [{ label: 'Set complete', icon: CheckCircle2, onClick: () => void handleComplete(row.original) }]
+                : []),
+              { label: 'Delete', icon: Trash2, danger: true, onClick: () => openDelete(row.original) },
+            ]}
+          />
+        </div>
+      ),
+    },
+  ], [handleComplete, openDelete]);
+  const desktopTable = useReactTable({
+    data: filteredTransactions,
+    columns: desktopColumns,
+    state: { sorting, pagination },
+    onSortingChange: setSorting,
+    onPaginationChange: (updater) => setPagination((current) =>
+      typeof updater === 'function' ? updater(current) : updater,
+    ),
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (transaction) => transaction.id,
+  });
+  const mobileTable = useReactTable({
+    data: filteredTransactions,
+    columns: mobileColumns,
+    state: { sorting, pagination, columnVisibility: { date: false } },
+    onSortingChange: setSorting,
+    onPaginationChange: (updater) => setPagination((current) =>
+      typeof updater === 'function' ? updater(current) : updater,
+    ),
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (transaction) => transaction.id,
+  });
+
+  if (transactionsQuery.isLoading) {
+    return <p className="text-sm text-[var(--muted)]">Loading transactions...</p>;
+  }
+
+  if (transactionsQuery.isError) {
+    return (
+      <p className="text-sm text-[var(--status-danger)]">
+        {transactionsQuery.error instanceof Error
+          ? transactionsQuery.error.message
+          : 'Failed to load transactions.'}
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -248,13 +352,26 @@ export default function TransactionsPage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-3">
         <SummaryTile label="Total orders" value={String(summary.count)} />
         <SummaryTile label="Revenue" value={formatRp(summary.total)} accent />
         <SummaryTile
           label="Pending"
           value={String(summary.pending)}
           warning={summary.pending > 0}
+        />
+        {}
+        <SummaryTile
+          label="Qris"
+          value={String(summary.qris)}
+          warning={summary.qris > 0}
+          accent
+        />
+        <SummaryTile
+          label="Cash"
+          value={String(summary.cash)}
+          warning={summary.cash > 0}
+          accent
         />
       </div>
 
@@ -418,212 +535,30 @@ export default function TransactionsPage() {
           )}
         </div>
 
-        {/* Desktop table */}
-        <div className="mt-4 hidden overflow-hidden rounded-[12px] border border-[var(--border)] md:block">
-          <table className="min-w-full text-sm">
-            <thead className="bg-[var(--surface-muted)] text-left text-[var(--muted)]">
-              <tr>
-                <SortTh
-                  label="Customer"
-                  field="customer"
-                  current={sortField}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-                <SortTh
-                  label="Cashier"
-                  field="cashier"
-                  current={sortField}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-                <SortTh
-                  label="Payment"
-                  field="payment"
-                  current={sortField}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-                <SortTh
-                  label="Status"
-                  field="status"
-                  current={sortField}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-                <SortTh
-                  label="Total"
-                  field="total"
-                  current={sortField}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-                <SortTh
-                  label="Date"
-                  field="date"
-                  current={sortField}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-                <th className="px-4 py-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageTransactions.map((transaction) => (
-                <tr
-                  key={transaction.id}
-                  onClick={() =>
-                    navigate(`/transactions/detail/${transaction.id}`)
-                  }
-                  className="cursor-pointer border-t border-[var(--border)] transition hover:bg-[var(--surface-muted)]/50"
-                >
-                  <td className="px-4 py-3">{transaction.customer}</td>
-                  <td className="px-4 py-3 text-[var(--muted)]">
-                    {transaction.cashier}
-                  </td>
-                  <td className="px-4 py-3">
-                    <PaymentBadge method={transaction.paymentMethod} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${statusStyles[transaction.status]}`}
-                    >
-                      {transaction.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-semibold">
-                    {formatRp(transaction.total)}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--muted)]">
-                    {transaction.date}
-                  </td>
-                  <td
-                    className="px-4 py-3"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <RowActions
-                      label={`Actions for ${transaction.invoice}`}
-                      actions={[
-                        {
-                          label: 'View',
-                          icon: Eye,
-                          href: `/transactions/detail/${transaction.id}`,
-                        },
-                        ...(transaction.status === 'pending'
-                          ? [
-                              {
-                                label: 'Set complete',
-                                icon: CheckCircle2,
-                                onClick: () => void handleComplete(transaction),
-                              },
-                            ]
-                          : []),
-                        {
-                          label: 'Delete',
-                          icon: Trash2,
-                          danger: true,
-                          onClick: () => openDelete(transaction),
-                        },
-                      ]}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="border-t border-[var(--border)] px-4">
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              pageSize={pageSize}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
+        {filteredTransactions.length > 0 && (
+          <>
+            <DataTable
+              table={desktopTable}
+              onRowClick={(transaction) => navigate(`/transactions/${transaction.id}`)}
+              containerClassName="mt-4 hidden overflow-hidden rounded-[12px] border border-[var(--border)] md:block"
+              
             />
-          </div>
-        </div>
-
-        {/* Compact mobile table */}
-        <div className="mt-3 overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--card)] md:hidden">
-          <div className="grid grid-cols-[minmax(0,1.3fr)_auto_minmax(70px,0.8fr)_auto] gap-2 bg-[var(--surface-muted)] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-            <span>Customer</span>
-            <span>Status</span>
-            <span>Total</span>
-            <span className="text-right">Actions</span>
-          </div>
-          {pageTransactions.map((transaction) => (
-            <div
-              key={transaction.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => navigate(`/transactions/detail/${transaction.id}`)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ')
-                  navigate(`/transactions/detail/${transaction.id}`);
-              }}
-              className="grid grid-cols-[minmax(0,1.3fr)_auto_minmax(70px,0.8fr)_auto] items-center gap-2 border-t border-[var(--border)] px-3 py-2.5 text-left transition hover:bg-[var(--surface-muted)]/60 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--accent)]/30"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">
-                  {transaction.customer}
-                </p>
-                <p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">
-                  {transaction.cashier} · {transaction.date}
-                </p>
+            {totalPages > 1 && (
+              <div className="mt-2 hidden md:block">
+                <TanStackTablePagination table={desktopTable} pageSizeOptions={[10, 25, 50]} />
               </div>
-              <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${statusStyles[transaction.status]}`}
-              >
-                {transaction.status}
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-[var(--accent)]">
-                  {formatRp(transaction.total)}
-                </p>
-                <div className="mt-0.5">
-                  <PaymentBadge method={transaction.paymentMethod} />
-                </div>
-              </div>
-              <div onClick={(event) => event.stopPropagation()}>
-                <RowActions
-                  label={`Actions for ${transaction.invoice}`}
-                  actions={[
-                    {
-                      label: 'View',
-                      icon: Eye,
-                      href: `/transactions/detail/${transaction.id}`,
-                    },
-                    ...(transaction.status === 'pending'
-                      ? [
-                          {
-                            label: 'Set complete',
-                            icon: CheckCircle2,
-                            onClick: () => void handleComplete(transaction),
-                          },
-                        ]
-                      : []),
-                    {
-                      label: 'Delete',
-                      icon: Trash2,
-                      danger: true,
-                      onClick: () => openDelete(transaction),
-                    },
-                  ]}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-        {totalPages > 1 && (
-          <div className="mt-2 md:hidden">
-            <Pagination
-              page={page}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              pageSize={pageSize}
-              onPageChange={setPage}
+            )}
+            <DataTable
+              table={mobileTable}
+              onRowClick={(transaction) => navigate(`/transactions/${transaction.id}`)}
+              containerClassName="mt-3 w-full overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--card)] md:hidden"
             />
-          </div>
+            {totalPages > 1 && (
+              <div className="mt-2 md:hidden">
+                <TanStackTablePagination table={mobileTable} pageSizeOptions={[10, 25, 50]} />
+              </div>
+            )}
+          </>
         )}
 
         {filteredTransactions.length === 0 && (
@@ -696,39 +631,3 @@ function PaymentBadge({ method }: { method: Transaction['paymentMethod'] }) {
   );
 }
 
-function SortTh({
-  label,
-  field,
-  current,
-  dir,
-  onSort,
-}: {
-  label: string;
-  field: SortField;
-  current: SortField;
-  dir: SortDir;
-  onSort: (f: SortField) => void;
-}) {
-  const active = current === field;
-  return (
-    <th className="px-4 py-3 font-medium">
-      <button
-        onClick={() => onSort(field)}
-        className="inline-flex items-center gap-1 transition hover:text-[var(--foreground)]"
-      >
-        {label}
-        <span className="text-[10px]">
-          {active ? (
-            dir === 'asc' ? (
-              '▲'
-            ) : (
-              '▼'
-            )
-          ) : (
-            <span className="opacity-30">▲▼</span>
-          )}
-        </span>
-      </button>
-    </th>
-  );
-}

@@ -22,7 +22,7 @@ import { AppSelect } from '../components/ui/app-select';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { TableSkeleton, CardGridSkeleton } from '../components/ui/skeleton';
 import { useAuthStore } from '../lib/auth/auth-store';
-import { ApiError } from '../lib/api-client';
+import { ApiError } from '../lib/api';
 import { usersApi } from '../lib/user/users-api';
 import type {
   ApiUser,
@@ -32,6 +32,15 @@ import type {
   SignupDto,
 } from '../types/api';
 import { useUserStore } from '#lib/user/user-store';
+import { FormField } from '#components/layout/form-field';
+import { DataTable } from '#components/ui/data-table';
+import {
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+} from '@tanstack/react-table';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -103,6 +112,9 @@ export default function UsersPage() {
   >({});
   const [passwordApiError, setPasswordApiError] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'username', desc: false },
+  ]);
 
   // Fetch on mount
   useEffect(() => {
@@ -380,6 +392,103 @@ export default function UsersPage() {
   };
 
   const isSelf = deletingUser?.id === currentUser?.id;
+  const actionsForUser = (user: ApiUser) => [
+    { label: 'Edit', icon: PencilLine, onClick: () => openEdit(user) },
+    ...(user.role !== 'ADMIN'
+      ? [{ label: 'Change Password', icon: KeyRound, onClick: () => openPassword(user) }]
+      : []),
+    {
+      label: 'Delete',
+      icon: Trash2,
+      danger: true,
+      disabled: user.id === currentUser?.id,
+      onClick: () => openDelete(user),
+    },
+  ];
+  const desktopColumns = useMemo<ColumnDef<ApiUser>[]>(() => [
+    {
+      accessorKey: 'username',
+      header: 'Member',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-accent)] text-xs font-semibold text-[var(--accent)]">
+            {row.original.username.slice(0, 2).toUpperCase()}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{row.original.username}</span>
+            {row.original.id === currentUser?.id && (
+              <span className="rounded-full bg-[var(--accent-strong)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">You</span>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    { accessorKey: 'email', header: 'Email', cell: ({ row }) => <span className="text-[var(--muted)]">{row.original.email}</span> },
+    { accessorKey: 'role', header: 'Role', cell: ({ row }) => <RoleBadge role={row.original.role} /> },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${row.original.status === 'ACTIVE' ? 'bg-[var(--surface-accent)] text-[var(--status-success)]' : 'bg-[var(--surface-muted)] text-[var(--muted)]'}`}>
+          {row.original.status}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      enableSorting: false,
+      header: 'Actions',
+      cell: ({ row }) => (
+        <div onClick={(event) => event.stopPropagation()}>
+          <RowActions label={`Actions for ${row.original.username}`} actions={actionsForUser(row.original)} />
+        </div>
+      ),
+    },
+  ], [currentUser?.id]);
+  const mobileColumns = useMemo<ColumnDef<ApiUser>[]>(() => [
+    {
+      accessorKey: 'username',
+      header: 'User',
+      cell: ({ row }) => (
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <p className="truncate text-sm font-semibold">{row.original.username}</p>
+            {row.original.id === currentUser?.id && <span className="shrink-0 text-[10px] font-semibold text-[var(--accent)]">You</span>}
+          </div>
+          <p className="truncate text-[11px] text-[var(--muted)]">{row.original.email}</p>
+        </div>
+      ),
+    },
+    { accessorKey: 'role', header: 'Role', cell: ({ row }) => <RoleBadge role={row.original.role} /> },
+    {
+      id: 'actions',
+      enableSorting: false,
+      header: () => <span className="block text-right">Actions</span>,
+      cell: ({ row }) => (
+        <div className="text-right" onClick={(event) => event.stopPropagation()}>
+          <RowActions label={`Actions for ${row.original.username}`} actions={actionsForUser(row.original)} />
+        </div>
+      ),
+    },
+  ], [currentUser?.id]);
+  const desktopTable = useReactTable({
+    data: filteredUsers,
+    columns: desktopColumns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getRowId: (user) => user.id,
+  });
+  const mobileTable = useReactTable({
+    data: filteredUsers,
+    columns: mobileColumns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getRowId: (user) => user.id,
+  });
 
   // ---------------------------------------------------------------------------
   // Render
@@ -485,159 +594,25 @@ export default function UsersPage() {
         {/* Table */}
         {!isLoading && !storeError && (
           <>
-            {/* Desktop */}
-            <div className="mt-4 hidden overflow-hidden rounded-[12px] border border-[var(--border)] md:block">
-              <table className="min-w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-[var(--muted)]">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Member</th>
-                    <th className="px-4 py-3 font-medium">Email</th>
-                    <th className="px-4 py-3 font-medium">Role</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map((user) => (
-                    <tr
-                      key={user.id}
-                      onClick={() => openEdit(user)}
-                      className="cursor-pointer border-t border-[var(--border)] transition hover:bg-[var(--surface-muted)]/50"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-accent)] text-xs font-semibold text-[var(--accent)]">
-                            {user.username.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{user.username}</span>
-                            {user.id === currentUser?.id && (
-                              <span className="rounded-full bg-[var(--accent-strong)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
-                                You
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-[var(--muted)]">
-                        {user.email}
-                      </td>
-                      <td className="px-4 py-3">
-                        <RoleBadge role={user.role} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${user.status === 'ACTIVE'
-                            ? 'bg-[var(--surface-accent)] text-[var(--status-success)]'
-                            : 'bg-[var(--surface-muted)] text-[var(--muted)]'
-                            }`}
-                        >
-                          {user.status}
-                        </span>
-                      </td>
-                      <td
-                        className="px-4 py-3"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <RowActions
-                          label={`Actions for ${user.username}`}
-                          actions={[
-                            {
-                              label: 'Edit',
-                              icon: PencilLine,
-                              onClick: () => openEdit(user),
-                            },
-                            ...(user.role !== 'ADMIN'
-                              ? [
-                                {
-                                  label: 'Change Password',
-                                  icon: KeyRound,
-                                  onClick: () => openPassword(user),
-                                },
-                              ]
-                              : []),
-                            {
-                              label: 'Delete',
-                              icon: Trash2,
-                              danger: true,
-                              disabled: user.id === currentUser?.id,
-                              onClick: () => openDelete(user),
-                            },
-                          ]}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Compact mobile table */}
-            <div className="mt-3 overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--card)] md:hidden">
-              <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(70px,0.8fr)_auto] gap-2 bg-[var(--surface-muted)] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-                <span>User</span>
-                <span>Role</span>
-                <span className="text-right">Actions</span>
-              </div>
-              {filteredUsers.map((user) => (
-                <div
-                  key={user.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openEdit(user)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ')
-                      openEdit(user);
-                  }}
-                  className="grid grid-cols-[minmax(0,1.4fr)_minmax(70px,0.8fr)_auto] items-center gap-2 border-t border-[var(--border)] px-3 py-2.5 text-left transition hover:bg-[var(--surface-muted)]/60 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--accent)]/30"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate text-sm font-semibold">
-                        {user.username}
-                      </p>
-                      {user.id === currentUser?.id && (
-                        <span className="shrink-0 text-[10px] font-semibold text-[var(--accent)]">
-                          You
-                        </span>
-                      )}
-                    </div>
-                    <p className="truncate text-[11px] text-[var(--muted)]">
-                      {user.email}
-                    </p>
-                  </div>
-                  <RoleBadge role={user.role} />
-                  <div onClick={(event) => event.stopPropagation()}>
-                    <RowActions
-                      label={`Actions for ${user.username}`}
-                      actions={[
-                        {
-                          label: 'Edit',
-                          icon: PencilLine,
-                          onClick: () => openEdit(user),
-                        },
-                        ...(user.role !== 'ADMIN'
-                          ? [
-                            {
-                              label: 'Change Password',
-                              icon: KeyRound,
-                              onClick: () => openPassword(user),
-                            },
-                          ]
-                          : []),
-                        {
-                          label: 'Delete',
-                          icon: Trash2,
-                          danger: true,
-                          disabled: user.id === currentUser?.id,
-                          onClick: () => openDelete(user),
-                        },
-                      ]}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            {filteredUsers.length > 0 && (
+              <>
+                <DataTable
+                  table={desktopTable}
+                  onRowClick={openEdit}
+                  emptyContent="No users found."
+                  containerClassName="mt-4 hidden overflow-hidden rounded-[12px] border border-[var(--border)] md:block"
+                  rowClassName="transition hover:bg-[var(--surface-muted)]/50"
+                />
+                <DataTable
+                  table={mobileTable}
+                  onRowClick={openEdit}
+                  emptyContent="No users found."
+                  containerClassName="mt-3 overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--card)] md:hidden"
+                  tableClassName="table-fixed"
+                  rowClassName="transition hover:bg-[var(--surface-muted)]/60"
+                />
+              </>
+            )}
 
             {/* Empty state */}
             {filteredUsers.length === 0 && (
@@ -980,29 +955,4 @@ function inputClass(hasError: boolean) {
 
 function selectClass() {
   return 'w-full rounded-[12px] bg-[var(--surface-muted)]';
-}
-
-function FormField({
-  label,
-  required,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="mb-1.5 block text-sm font-medium text-[var(--muted)]">
-        {label}
-        {required && <span className="text-[var(--status-danger)]"> *</span>}
-      </label>
-      {children}
-      {error && (
-        <p className="mt-1.5 text-xs text-[var(--status-danger)]">{error}</p>
-      )}
-    </div>
-  );
 }

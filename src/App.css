@@ -21,6 +21,7 @@
   --band-text: #ffffff;
   --band-text-muted: rgba(255, 255, 255, 0.7);
   --heading: #006241;
+  --popover: #ffffff;
 }
 
 .dark {
@@ -44,13 +45,16 @@
   --band-text: #ffffff;
   --band-text-muted: rgba(255, 255, 255, 0.7);
   --heading: #66c39a;
+  --popover: #141a18;
 }
+
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-popover: var(--popover);
 }
 
 * {

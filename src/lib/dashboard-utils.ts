@@ -1,4 +1,4 @@
-import type { Transaction } from '../types/inde';
+import type { Transaction } from './transaction/transaction-types';
 
 export type PeriodFilter = 'today' | 'week' | 'month' | 'custom';
 

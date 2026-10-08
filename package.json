@@ -14,6 +14,7 @@
     "@hookform/resolvers": "^5.9.1",
     "@tanstack/react-query": "^5.103.2",
     "@tanstack/react-query-devtools": "^5.103.2",
+    "@tanstack/react-table": "8",
     "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.3.0",
@@ -22,6 +23,7 @@
     "react-dom": "^19.3.0",
     "react-hook-form": "^7.88.0",
     "react-router": "^8.4.0",
+    "recharts": "^3.10.1",
     "sonner": "^2.0.8",
     "zod": "^4.6.5",
     "zustand": "^5.0.15"

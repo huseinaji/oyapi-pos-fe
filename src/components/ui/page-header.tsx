@@ -23,11 +23,11 @@ export function PageHeader({
           <h1 className="mt-1 text-2xl font-semibold leading-tight tracking-[-0.01em]">
             {title}
           </h1>
-          {description && (
+          {description ? (
             <p className="mt-1 text-sm text-[var(--band-text-muted)]">
               {description}
             </p>
-          )}
+          ): <div className="h-6"/>}
         </div>
 
         {(action || children) && (

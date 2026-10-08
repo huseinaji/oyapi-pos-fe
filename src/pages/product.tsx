@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useNavigate } from 'react-router';
 import {
   Search,
   Plus,
@@ -13,98 +17,128 @@ import { AppButton } from '../components/ui/app-button';
 import { AppDialog } from '../components/ui/app-dialog';
 import { ConfirmDeleteDialog } from '../components/ui/confirm-delete-dialog';
 import { PageHeader } from '../components/ui/page-header';
-import { Pagination } from '../components/ui/pagination';
 import { RowActions } from '../components/ui/row-actions';
 import { SectionCard } from '../components/ui/section-card';
 import { AppSelect } from '../components/ui/app-select';
 import { TableSkeleton, CardGridSkeleton } from '../components/ui/skeleton';
-import { usePagination } from '../hooks/use-pagination';
+import { DataTable } from '#components/ui/data-table';
+import { TanStackTablePagination } from '#components/ui/tanstack-table-pagination';
+import {
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+  type ColumnDef,
+  type PaginationState,
+} from '@tanstack/react-table';
 
-import { ApiError } from '../lib/api-client';
+import { ApiError } from '../lib/api';
 import type {
   ApiItem,
   CreateItemDto,
-  ItemCategory,
+  StoreItemCategory,
+  ItemType,
   ItemUom,
-} from '../types/api';
+  UpdateItemDto,
+} from '#lib/product/product-types';
 import {
-  ITEM_CATEGORY_LABELS,
-  ITEM_CATEGORY_OPTIONS,
+  ITEM_TYPE_LABELS,
+  ITEM_TYPE_OPTIONS,
   ITEM_UOM_LABELS,
   ITEM_UOM_OPTIONS,
-} from '../types/api';
+} from '#lib/product/product-types';
 import { formatRp } from '../lib/transaction-utils';
-import { Field, FieldContent, FieldTitle, FieldDescription } from '#components/ui/field';
+import { Field, FieldContent, FieldTitle, FieldDescription} from '#components/ui/field';
 import { Checkbox } from '#components/ui/checkbox';
-import { useProductStore } from '#lib/product/product-store';
+import {
+  useCreateProductMutation,
+  useDeleteProductMutation,
+  useProductsQuery,
+  useUpdateProductMutation,
+} from '#lib/product/product-store';
+import { FormField } from '#components/layout/form-field';
+import { useItemCategoriesQuery } from '#lib/product/item-categories-store';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type ItemForm = {
-  name: string;
-  category: string;
-  uom: string;
-  basePrice: number;
-  sellingPrice: number;
-  isMaintainStock: boolean;
-};
+const itemSchema = z.object({
+  name: z.string().trim().min(1, 'Item name is required.'),
+  imageUrl: z.string().optional(),
+  type: z.string().min(1, 'Item type is required.'),
+  categoryId: z.string().optional(),
+  uom: z.string().min(1, 'Unit of measure is required.'),
+  basePrice: z.number().min(0, 'Base price cannot be negative.'),
+  sellingPrice: z.number().positive('Selling price must be greater than 0.'),
+  isMaintainStock: z.boolean(),
+  initialStock: z.number().int().min(0, 'Initial stock cannot be negative.'),
+});
 
-type FormErrors = Partial<Record<keyof ItemForm, string>>;
-type SortField = 'name' | 'category' | 'uom' | 'sellingPrice' | 'basePrice';
-type SortDir = 'asc' | 'desc';
+type ItemForm = z.infer<typeof itemSchema>;
 
 const emptyForm: ItemForm = {
   name: '',
-  category: ITEM_CATEGORY_OPTIONS[0],
+  imageUrl: '',
+  type: ITEM_TYPE_OPTIONS[0],
+  categoryId: '',
   uom: ITEM_UOM_OPTIONS[0],
   basePrice: 0,
   sellingPrice: 0,
   isMaintainStock: false,
+  initialStock: 0,
 };
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatCategory(category: string): string {
-  return ITEM_CATEGORY_LABELS[category as ItemCategory] ?? category;
+function formatItemType(type: string): string {
+  return ITEM_TYPE_LABELS[type as ItemType] ?? type;
 }
 
 function formatUom(uom: string): string {
   return ITEM_UOM_LABELS[uom as ItemUom] ?? uom.toUpperCase();
 }
 
-function validateForm(form: ItemForm): FormErrors {
-  const errors: FormErrors = {};
-  if (!form.name.trim()) errors.name = 'Product name is required.';
-  if (form.sellingPrice <= 0)
-    errors.sellingPrice = 'Selling price must be greater than 0.';
-  if (form.basePrice < 0) errors.basePrice = 'Base price cannot be negative.';
-  return errors;
-}
+function itemToForm(item: ApiItem, categories: StoreItemCategory[]): ItemForm {
+  const categoryName = item.category.trim().toLocaleLowerCase();
+  const categoryId =
+    item.categoryId ??
+    categories.find(
+      (category) => category.name.trim().toLocaleLowerCase() === categoryName,
+    )?.id ??
+    '';
 
-function itemToForm(item: ApiItem): ItemForm {
   return {
     name: item.name,
-    category: item.category,
+    imageUrl: item.imageUrl ?? '',
+    type: item.type ?? ITEM_TYPE_OPTIONS[0],
+    categoryId,
     uom: item.uom,
     basePrice: item.basePrice,
     sellingPrice: item.sellingPrice,
     isMaintainStock: item.isMaintainStock,
+    initialStock: 0,
   };
 }
 
 function formToDto(form: ItemForm): CreateItemDto {
   return {
     name: form.name.trim(),
-    category: form.category.trim(),
+    ...(form.imageUrl?.trim() ? { imageUrl: form.imageUrl.trim() } : {}),
+    type: form.type.trim(),
+    ...(form.categoryId ? { categoryId: form.categoryId } : {}),
     uom: form.uom.trim(),
     basePrice: form.basePrice,
     sellingPrice: form.sellingPrice,
     isMaintainStock: form.isMaintainStock,
+    initialStock: form.initialStock,
   };
+}
+
+function formToUpdateDto(form: ItemForm): UpdateItemDto {
+  const { initialStock: _initialStock, ...updateDto } = formToDto(form);
+  return { ...updateDto, imageUrl: form.imageUrl?.trim() ?? '' };
 }
 
 function extractApiError(err: unknown): string {
@@ -118,13 +152,16 @@ function extractApiError(err: unknown): string {
 // ---------------------------------------------------------------------------
 
 export default function ProductsPage() {
-  const items = useProductStore((state) => state.items);
-  const isLoading = useProductStore((state) => state.isLoading);
-  const storeError = useProductStore((state) => state.error);
-  const fetchItems = useProductStore((state) => state.fetchItems);
-  const addItem = useProductStore((state) => state.addItem);
-  const updateItem = useProductStore((state) => state.updateItem);
-  const deleteItem = useProductStore((state) => state.deleteItem);
+  const navigate = useNavigate();
+  const productsQuery = useProductsQuery();
+  const categoriesQuery = useItemCategoriesQuery();
+  const createProductMutation = useCreateProductMutation();
+  const updateProductMutation = useUpdateProductMutation();
+  const deleteProductMutation = useDeleteProductMutation();
+  const items = productsQuery.data?.rows ?? [];
+  const categories = categoriesQuery.data?.rows ?? [];
+  const isLoading = productsQuery.isLoading;
+  const storeError = productsQuery.isError ? 'Failed to load items' : null;
 
   const [query, setQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -132,28 +169,58 @@ export default function ProductsPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingItem, setDeletingItem] = useState<ApiItem | null>(null);
-  const [formState, setFormState] = useState<ItemForm>({ ...emptyForm });
-  const [formErrors, setFormErrors] = useState<FormErrors>({});
-  const [isSaving, setIsSaving] = useState(false);
   const [formApiError, setFormApiError] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<SortField>('name');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors: formErrors, isDirty: isFormDirty, isSubmitting: isSaving },
+  } = useForm<ItemForm, unknown, ItemForm>({
+    resolver: zodResolver(itemSchema),
+    defaultValues: emptyForm,
+  });
+  const imageUrl = watch('imageUrl');
 
-  // Fetch products on mount
-  useEffect(() => {
-    void fetchItems();
-  }, [fetchItems]);
+  const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Choose an image file.');
+      return;
+    }
+    if (file.size > 1_500_000) {
+      toast.error('Image must be smaller than 1.5 MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setValue('imageUrl', reader.result, { shouldDirty: true, shouldValidate: true });
+      }
+    };
+    reader.onerror = () => toast.error('Unable to read the image file.');
+    reader.readAsDataURL(file);
+  };
 
   // Unique categories derived from loaded items
-  const categoryOptions = useMemo(() => {
-    const cats = Array.from(new Set(items.map((item) => item.category))).sort();
-    return cats;
-  }, [items]);
-
   const filterOptions = useMemo(
-    () => ['All', ...categoryOptions],
-    [categoryOptions],
+    () => ['All', ...categories.map((category) => category.id)],
+    [categories],
   );
+
+  const getCategoryName = (item: ApiItem) =>
+    categories.find((category) => category.id === item.categoryId)?.name ??
+    item.category ??
+    'Uncategorized';
 
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -161,55 +228,15 @@ export default function ProductsPage() {
         .toLowerCase()
         .includes(query.toLowerCase());
       const matchesCategory =
-        selectedCategory === 'All' || item.category === selectedCategory;
+        selectedCategory === 'All' || item.categoryId === selectedCategory;
       return matchesQuery && matchesCategory;
     });
   }, [items, query, selectedCategory]);
 
-  const sortedItems = useMemo(() => {
-    return [...filteredItems].sort((a, b) => {
-      let cmp = 0;
-      switch (sortField) {
-        case 'name':
-          cmp = a.name.localeCompare(b.name);
-          break;
-        case 'category':
-          cmp = a.category.localeCompare(b.category);
-          break;
-        case 'uom':
-          cmp = a.uom.localeCompare(b.uom);
-          break;
-        case 'sellingPrice':
-          cmp = a.sellingPrice - b.sellingPrice;
-          break;
-        case 'basePrice':
-          cmp = a.basePrice - b.basePrice;
-          break;
-      }
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-  }, [filteredItems, sortField, sortDir]);
-
-  const {
-    page,
-    totalPages,
-    totalItems,
-    pageSize,
-    paginatedItems: pageItems,
-    setPage,
-    setPageSize,
-    resetPage,
-  } = usePagination(sortedItems, 10);
-
-  const toggleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortDir('asc');
-    }
-    resetPage();
-  };
+  const totalItems = filteredItems.length;
+  const pageSize = pagination.pageSize;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const resetPage = () => setPagination((current) => ({ ...current, pageIndex: 0 }));
 
   // ---------------------------------------------------------------------------
   // Dialog helpers
@@ -217,24 +244,31 @@ export default function ProductsPage() {
 
   const openNew = () => {
     setEditingId(null);
-    setFormState({ ...emptyForm });
-    setFormErrors({});
+    reset(emptyForm);
     setFormApiError(null);
     setFormOpen(true);
   };
 
-  const openEdit = (item: ApiItem) => {
+  const openEdit = async (item: ApiItem) => {
+    let availableCategories = categories;
+    if (!item.categoryId && categoriesQuery.isLoading) {
+      const result = await categoriesQuery.refetch();
+      availableCategories = result.data?.rows ?? [];
+    }
+
     setEditingId(item.id);
-    setFormState(itemToForm(item));
-    setFormErrors({});
+    reset(itemToForm(item, availableCategories));
     setFormApiError(null);
     setFormOpen(true);
+  };
+
+  const openDetail = (item: ApiItem) => {
+    navigate(`/products/${item.id}`);
   };
 
   const closeForm = () => {
     setFormOpen(false);
     setEditingId(null);
-    setFormErrors({});
     setFormApiError(null);
   };
 
@@ -252,23 +286,20 @@ export default function ProductsPage() {
   // CRUD handlers
   // ---------------------------------------------------------------------------
 
-  const handleSave = async () => {
-    const nextErrors = validateForm(formState);
-    if (Object.keys(nextErrors).length > 0) {
-      setFormErrors(nextErrors);
-      return;
-    }
-    setIsSaving(true);
+  const handleSave = async (formState: ItemForm) => {
     setFormApiError(null);
     try {
       const dto = formToDto(formState);
       if (editingId) {
-        await updateItem(editingId, dto);
+        await updateProductMutation.mutateAsync({
+          id: editingId,
+          body: formToUpdateDto(formState),
+        });
         toast.success('Product updated', {
           description: `"${formState.name}" saved.`,
         });
       } else {
-        await addItem(dto);
+        await createProductMutation.mutateAsync(dto);
         toast.success('Product created', {
           description: `"${formState.name}" added to catalog.`,
         });
@@ -276,15 +307,13 @@ export default function ProductsPage() {
       closeForm();
     } catch (err) {
       setFormApiError(extractApiError(err));
-    } finally {
-      setIsSaving(false);
     }
   };
 
   const handleConfirmDelete = async () => {
     if (!deletingItem) return;
     try {
-      await deleteItem(deletingItem.id);
+      await deleteProductMutation.mutateAsync(deletingItem.id);
       toast.success('Product deleted', {
         description: `"${deletingItem.name}" removed from catalog.`,
       });
@@ -296,14 +325,137 @@ export default function ProductsPage() {
     }
   };
 
-  const updateField = <K extends keyof ItemForm>(
-    key: K,
-    value: ItemForm[K],
-  ) => {
-    setFormState((prev) => ({ ...prev, [key]: value }));
-    if (formErrors[key])
-      setFormErrors((prev) => ({ ...prev, [key]: undefined }));
+  const desktopColumns = useMemo<ColumnDef<ApiItem>[]>(() => [
+    {
+      id: 'number',
+      enableSorting: false,
+      header: () => <span className="block text-center">No.</span>,
+      cell: ({ row, table }) => (
+        <div className="text-center text-[var(--muted)]">
+          {pagination.pageIndex * pageSize + table.getRowModel().rows.findIndex((current) => current.id === row.id) + 1}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'name',
+      header: 'Name',
+      enableSorting: false,
+      cell: ({ row }) => (<span className="max-w-0 truncate font-medium text-[var(--foreground)]">{row.original.name}</span>)
+
+    },
+    {
+      accessorFn: (item) => formatItemType(item.type ?? ''),
+      id: 'type',
+      header: 'Item type',
+      enableSorting: false,
+      cell: ({ row }) => <span className="text-[var(--muted)]">{formatItemType(row.original.type ?? '')}</span>,
+    },
+    {
+      accessorFn: (item) => getCategoryName(item),
+      id: 'category',
+      header: 'Category',
+      enableSorting: false,
+      cell: ({ row }) => <span className="block max-w-0 truncate text-[var(--muted)]">{getCategoryName(row.original)}</span>,
+    },
+    {
+      accessorKey: 'uom',
+      header: 'UOM',
+      enableSorting: false,
+      cell: ({ row }) => <span className="text-[var(--muted)]">{formatUom(row.original.uom)}</span>,
+    },
+    {
+      accessorKey: 'sellingPrice',
+      header: 'Selling price',
+      enableSorting: false,
+      cell: ({ row }) => <span className="font-medium text-[var(--foreground)]">{formatRp(row.original.sellingPrice)}</span>,
+    },
+    {
+      id: 'actions',
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div onClick={(event) => event.stopPropagation()}>
+          <RowActions
+            label={`Actions for ${row.original.name}`}
+            actions={[
+              { label: 'Edit', icon: PencilLine, onClick: () => void openEdit(row.original) },
+              { label: 'Delete', icon: Trash2, danger: true, onClick: () => openDeleteConfirm(row.original) },
+            ]}
+          />
+        </div>
+      ),
+    },
+  ], [getCategoryName, openDeleteConfirm, openEdit, pageSize, pagination.pageIndex]);
+  const mobileColumns = useMemo<ColumnDef<ApiItem>[]>(() => [
+    {
+      id: 'number',
+      enableSorting: false,
+      header: () => <span className="block text-center">No.</span>,
+      cell: ({ row, table }) => (
+        <div className="text-center text-xs text-[var(--muted)]">
+          {pagination.pageIndex * pageSize + table.getRowModel().rows.findIndex((current) => current.id === row.id) + 1}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'name',
+      header: 'Product',
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="min-w-0 overflow-hidden">
+          <p className="truncate text-sm font-semibold text-[var(--foreground)]">{row.original.name}</p>
+          <p className="mt-0.5 truncate text-xs text-[var(--muted)]">{formatItemType(row.original.type ?? '')} · {getCategoryName(row.original)} · {formatUom(row.original.uom)}</p>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'sellingPrice',
+      header: 'Price',
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="overflow-hidden">
+          <p className="whitespace-nowrap text-sm font-semibold text-[var(--accent)]">{formatRp(row.original.sellingPrice)}</p>
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      enableSorting: false,
+      header: '',
+      cell: ({ row }) => (
+        <div className="text-right" onClick={(event) => event.stopPropagation()}>
+          <RowActions
+            label={`Actions for ${row.original.name}`}
+            actions={[
+              { label: 'Edit', icon: PencilLine, onClick: () => void openEdit(row.original) },
+              { label: 'Delete', icon: Trash2, danger: true, onClick: () => openDeleteConfirm(row.original) },
+            ]}
+          />
+        </div>
+      ),
+    },
+  ], [getCategoryName, openDeleteConfirm, openEdit, pageSize, pagination.pageIndex]);
+  const tableState = { pagination };
+  const updatePagination = (updater: Parameters<typeof setPagination>[0]) => {
+    setPagination((current) => typeof updater === 'function' ? updater(current) : updater);
   };
+  const desktopTable = useReactTable({
+    data: filteredItems,
+    columns: desktopColumns,
+    state: tableState,
+    onPaginationChange: updatePagination,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (item) => item.id,
+  });
+  const mobileTable = useReactTable({
+    data: filteredItems,
+    columns: mobileColumns,
+    state: tableState,
+    onPaginationChange: updatePagination,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (item) => item.id,
+  });
 
   // ---------------------------------------------------------------------------
   // Render
@@ -313,7 +465,7 @@ export default function ProductsPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Inventory"
-        title="Products"
+        title="Items"
         description={`${items.length} items in catalog`}
         action={
           <div className='hidden md:block'>
@@ -323,7 +475,7 @@ export default function ProductsPage() {
               disabled={isLoading}
             >
               <Plus size={14} />
-              <span className="ml-2">Add product</span>
+              <span className="ml-2">Add item</span>
             </AppButton>
           </div>
         }
@@ -359,7 +511,9 @@ export default function ProductsPage() {
                     : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:border-[var(--accent)]/40'
                 }`}
               >
-                {cat === 'All' ? cat : formatCategory(cat)}
+                {cat === 'All'
+                  ? cat
+                  : categories.find((category) => category.id === cat)?.name ?? cat}
               </button>
             ))}
           </div>
@@ -381,197 +535,63 @@ export default function ProductsPage() {
         {!isLoading && storeError && (
           <div className="mt-6 flex flex-col items-center gap-3 rounded-[12px] border border-[var(--status-danger)]/20 bg-[var(--status-danger)]/5 p-6 text-center">
             <p className="text-sm font-medium text-[var(--status-danger)]">
-              Failed to load products. Please try again.
+              Failed to load items. Please try again.
             </p>
-            <AppButton variant="secondary" onClick={() => void fetchItems()}>
+            <AppButton variant="secondary" onClick={() => void productsQuery.refetch()}>
               <RefreshCw size={14} />
               <span className="ml-2">Retry</span>
             </AppButton>
           </div>
         )}
 
-        {/* Desktop table */}
         {!isLoading && !storeError && (
           <>
-            <div className="mt-4 hidden overflow-hidden rounded-[12px] border border-[var(--border)] md:block">
-              <table className="min-w-full text-sm">
-                <thead className="bg-[var(--surface-muted)] text-left text-[var(--muted)]">
-                  <tr>
-                    <SortTh
-                      label="Name"
-                      field="name"
-                      current={sortField}
-                      dir={sortDir}
-                      onSort={toggleSort}
-                    />
-                    <SortTh
-                      label="Category"
-                      field="category"
-                      current={sortField}
-                      dir={sortDir}
-                      onSort={toggleSort}
-                    />
-                    <SortTh
-                      label="UOM"
-                      field="uom"
-                      current={sortField}
-                      dir={sortDir}
-                      onSort={toggleSort}
-                    />
-                    <SortTh
-                      label="Base Price"
-                      field="basePrice"
-                      current={sortField}
-                      dir={sortDir}
-                      onSort={toggleSort}
-                    />
-                    <SortTh
-                      label="Selling Price"
-                      field="sellingPrice"
-                      current={sortField}
-                      dir={sortDir}
-                      onSort={toggleSort}
-                    />
-                    <th className="px-4 py-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageItems.map((item) => (
-                    <tr
-                      key={item.id}
-                      onClick={() => openEdit(item)}
-                      className="cursor-pointer border-t border-[var(--border)] transition hover:bg-[var(--surface-muted)]/60"
-                    >
-                      <td className="px-4 py-3 font-medium">{item.name}</td>
-                      <td className="px-4 py-3">
-                        {formatCategory(item.category)}
-                      </td>
-                      <td className="px-4 py-3 text-[var(--muted)]">
-                        {formatUom(item.uom)}
-                      </td>
-                      <td className="px-4 py-3 text-[var(--muted)]">
-                        {formatRp(item.basePrice)}
-                      </td>
-                      <td className="px-4 py-3 font-medium">
-                        {formatRp(item.sellingPrice)}
-                      </td>
-                      <td
-                        className="px-4 py-3"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <RowActions
-                          label={`Actions for ${item.name}`}
-                          actions={[
-                            {
-                              label: 'Edit',
-                              icon: PencilLine,
-                              onClick: () => openEdit(item),
-                            },
-                            {
-                              label: 'Delete',
-                              icon: Trash2,
-                              danger: true,
-                              onClick: () => openDeleteConfirm(item),
-                            },
-                          ]}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="border-t border-[var(--border)] px-4">
-                <Pagination
-                  page={page}
-                  totalPages={totalPages}
-                  totalItems={totalItems}
-                  pageSize={pageSize}
-                  onPageChange={setPage}
-                  onPageSizeChange={setPageSize}
-                />
-              </div>
-            </div>
-
-            {/* Compact mobile table */}
-            <div className="mt-3 overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--card)] md:hidden">
-              <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(70px,0.8fr)_auto] gap-2 bg-[var(--surface-muted)] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">
-                <span>Product</span>
-                <span>Price</span>
-                <span className="text-right">Actions</span>
-              </div>
-              {pageItems.map((item) => (
-                <div
-                  key={item.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openEdit(item)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ')
-                      openEdit(item);
-                  }}
-                  className="grid grid-cols-[minmax(0,1.5fr)_minmax(70px,0.8fr)_auto] items-center gap-2 border-t border-[var(--border)] px-3 py-2.5 text-left transition hover:bg-[var(--surface-muted)]/60 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--accent)]/30"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold">
-                      {item.name}
-                    </p>
-                    <p className="mt-0.5 truncate text-xs text-[var(--muted)]">
-                      {formatCategory(item.category)} · {formatUom(item.uom)}
-                    </p>
-                  </div>
+            {filteredItems.length > 0 && (
+              <div className="mt-4 rounded-[24px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm md:p-5">
+                <div className="mb-3 flex items-center justify-between border-b border-[var(--border)] pb-3">
                   <div>
-                    <p className="text-sm font-semibold text-[var(--accent)]">
-                      {formatRp(item.sellingPrice)}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-[var(--muted)]">
-                      Base {formatRp(item.basePrice)}
-                    </p>
+                    <p className="text-xs font-medium text-[var(--accent)]">Catalog list</p>
                   </div>
-                  <div onClick={(event) => event.stopPropagation()}>
-                    <RowActions
-                      label={`Actions for ${item.name}`}
-                      actions={[
-                        {
-                          label: 'Edit',
-                          icon: PencilLine,
-                          onClick: () => openEdit(item),
-                        },
-                        {
-                          label: 'Delete',
-                          icon: Trash2,
-                          danger: true,
-                          onClick: () => openDeleteConfirm(item),
-                        },
-                      ]}
-                    />
-                  </div>
+                  <span className="rounded-full border border-[var(--border)] px-2.5 py-1 text-xs text-[var(--muted)]">{filteredItems.length} items</span>
                 </div>
-              ))}
-            </div>
 
-            {totalPages > 1 && (
-              <div className="mt-2 md:hidden">
-                <Pagination
-                  page={page}
-                  totalPages={totalPages}
-                  totalItems={totalItems}
-                  pageSize={pageSize}
-                  onPageChange={setPage}
-                />
+                <div className="overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--card)]">
+                  <DataTable
+                    table={desktopTable}
+                    onRowClick={openDetail}
+                    containerClassName="hidden md:block"
+                  />
+                  <DataTable
+                    table={mobileTable}
+                    onRowClick={openDetail}
+                    containerClassName="md:hidden"
+                  />
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="mt-3 border-t border-[var(--border)] px-3 md:px-4">
+                    <div className="hidden md:block">
+                      <TanStackTablePagination table={desktopTable} pageSizeOptions={[10, 25, 50]} />
+                    </div>
+                    <div className="md:hidden">
+                      <TanStackTablePagination table={mobileTable} pageSizeOptions={[10, 25, 50]} />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {filteredItems.length === 0 && !isLoading && (
               <div className="mt-6 flex flex-col items-center justify-center rounded-[12px] border border-dashed border-[var(--border)] p-8 text-center">
                 <PackageOpen className="mb-3 text-[var(--accent)]" size={28} />
-                <p className="font-medium">No products matched your search.</p>
+                <p className="font-medium">No items matched your search.</p>
                 <p className="mt-1 text-sm text-[var(--muted)]">
-                  Try another keyword or add a new product.
+                  Try another keyword or add a new item.
                 </p>
                 <div className="mt-4 hidden md:block">
                   <AppButton variant="primary" onClick={openNew}>
                     <Plus size={14} />
-                    <span className="ml-2">Add product</span>
+                    <span className="ml-2">Add item</span>
                   </AppButton>
                 </div>
               </div>
@@ -584,8 +604,8 @@ export default function ProductsPage() {
       <AppDialog
         open={formOpen}
         onClose={closeForm}
-        title={editingId ? 'Edit product' : 'New product'}
-        description="Fill in product details. Required fields are marked."
+        title={editingId ? 'Edit item' : 'New item'}
+        description="Fill in item details. Required fields are marked."
         size="lg"
       >
         {formApiError && (
@@ -594,96 +614,198 @@ export default function ProductsPage() {
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="Product name" required error={formErrors.name}>
+        <form
+          id="product-form"
+          className="grid gap-4 sm:grid-cols-2"
+          onSubmit={(event) => {
+            void handleSubmit(handleSave)(event);
+          }}
+        >
+          <FormField label="Item name" required error={formErrors.name?.message}>
             <input
-              value={formState.name}
-              onChange={(e) => updateField('name', e.target.value)}
+              {...register('name')}
               placeholder="e.g. Caffè Latte"
               className={inputClass(!!formErrors.name)}
             />
           </FormField>
 
-          <FormField label="Category" required error={formErrors.category}>
-            <AppSelect
-              value={formState.category}
-              onValueChange={(value) => updateField('category', value)}
-              options={[
-                { value: '', label: 'Select category…', disabled: true },
-                ...ITEM_CATEGORY_OPTIONS.map((category) => ({
-                  value: category,
-                  label: formatCategory(category),
-                })),
-              ]}
-              className={selectClass()}
+          <FormField label="Item image">
+            <div className="space-y-2">
+              <input
+                {...register('imageUrl')}
+                type="text"
+                inputMode="url"
+                placeholder="Paste an image URL"
+                className={inputClass(false)}
+              />
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--accent)]">
+                <input type="file" accept="image/*" onChange={handleImageFileChange} className="sr-only" />
+                <span className="rounded-full border border-[var(--border)] px-3 py-1.5 hover:bg-[var(--surface-muted)]">
+                  Upload image
+                </span>
+                <span className="text-xs text-[var(--muted)]">Max 1.5 MB</span>
+              </label>
+              {imageUrl && (
+                <img
+                  src={imageUrl}
+                  alt="Item preview"
+                  className="h-24 w-32 rounded-[8px] border border-[var(--border)] object-cover"
+                />
+              )}
+            </div>
+          </FormField>
+
+          <FormField label="Item type" required error={formErrors.type?.message}>
+            <Controller
+              name="type"
+              control={control}
+              render={({ field }) => (
+                <AppSelect
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  options={[
+                    { value: '', label: 'Select category…', disabled: true },
+                    ...ITEM_TYPE_OPTIONS.map((type) => ({
+                      value: type,
+                      label: formatItemType(type),
+                    })),
+                  ]}
+                  className={selectClass()}
+                />
+              )}
+            />
+          </FormField>
+
+          <FormField label="Item category">
+            <Controller
+              name="categoryId"
+              control={control}
+              render={({ field }) => (
+                <AppSelect
+                  value={field.value ?? ''}
+                  onValueChange={field.onChange}
+                  options={[
+                    { value: '', label: 'Uncategorized' },
+                    ...categories.map((category) => ({
+                      value: category.id,
+                      label: category.name,
+                    })),
+                  ]}
+                  className={selectClass()}
+                  disabled={categoriesQuery.isLoading}
+                />
+              )}
             />
           </FormField>
 
           <FormField
             label="Unit of Measure (UOM)"
             required
-            error={formErrors.uom}
+            error={formErrors.uom?.message}
           >
-            <AppSelect
-              value={formState.uom}
-              onValueChange={(value) => updateField('uom', value)}
-              options={[
-                { value: '', label: 'Select UOM…', disabled: true },
-                ...ITEM_UOM_OPTIONS.map((uom) => ({
-                  value: uom,
-                  label: formatUom(uom),
-                })),
-              ]}
-              className={selectClass()}
+            <Controller
+              name="uom"
+              control={control}
+              render={({ field }) => (
+                <AppSelect
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  options={[
+                    { value: '', label: 'Select UOM…', disabled: true },
+                    ...ITEM_UOM_OPTIONS.map((uom) => ({
+                      value: uom,
+                      label: formatUom(uom),
+                    })),
+                  ]}
+                  className={selectClass()}
+                />
+              )}
             />
           </FormField>
 
-          <FormField label="Base Price (Rp)" error={formErrors.basePrice}>
-            <input
-              type="number"
-              min={0}
-              value={formState.basePrice || ''}
-              onChange={(e) => updateField('basePrice', Number(e.target.value))}
-              placeholder="0"
-              className={inputClass(!!formErrors.basePrice)}
+          <FormField label="Base Price (Rp)" error={formErrors.basePrice?.message}>
+            <Controller
+              name="basePrice"
+              control={control}
+              render={({ field }) => (
+                <input
+                  type="number"
+                  min={0}
+                  value={field.value || ''}
+                  onChange={(event) => field.onChange(Number(event.target.value))}
+                  placeholder="0"
+                  className={inputClass(!!formErrors.basePrice)}
+                />
+              )}
             />
           </FormField>
 
           <FormField
             label="Selling Price (Rp)"
             required
-            error={formErrors.sellingPrice}
+            error={formErrors.sellingPrice?.message}
           >
-            <input
-              type="number"
-              min={0}
-              value={formState.sellingPrice || ''}
-              onChange={(e) =>
-                updateField('sellingPrice', Number(e.target.value))
-              }
-              placeholder="0"
-              className={inputClass(!!formErrors.sellingPrice)}
+            <Controller
+              name="sellingPrice"
+              control={control}
+              render={({ field }) => (
+                <input
+                  type="number"
+                  min={0}
+                  value={field.value || ''}
+                  onChange={(event) => field.onChange(Number(event.target.value))}
+                  placeholder="0"
+                  className={inputClass(!!formErrors.sellingPrice)}
+                />
+              )}
             />
           </FormField>
-          <Field orientation="horizontal">
-            <Checkbox
-              id="terms-checkbox"
-              name="terms-checkbox"
-              checked={formState.isMaintainStock}
-              onCheckedChange={(e) =>
-                updateField('isMaintainStock', e === true)
-              }
-            />
-            <FieldContent>
-              <FieldTitle>Maintain Stock</FieldTitle>
-              <FieldDescription>
-                If checked, stock will be inject and will be able use for POS transaction
-              </FieldDescription>
-            </FieldContent>
-          </Field>
-        </div>
 
-        <div className="mt-6 flex flex-wrap justify-end gap-2">
+          <Controller
+            name="isMaintainStock"
+            control={control}
+            render={({ field }) => (
+              <Field orientation="horizontal">
+                <Checkbox
+                  id="maintain-stock"
+                  name={field.name}
+                  checked={field.value}
+                  onBlur={field.onBlur}
+                  onCheckedChange={field.onChange}
+                />
+                <FieldContent>
+                  <FieldTitle>Maintain Stock</FieldTitle>
+                  <FieldDescription className="text-[var(--muted-2)]">
+                    If checked, stock will be injected and available for POS transactions.
+                  </FieldDescription>
+                </FieldContent>
+              </Field>
+            )}
+          />
+          {!editingId && (
+            <FormField
+              label="Initial Stock"
+              required
+              error={formErrors.initialStock?.message}
+            >
+              <Controller
+                name="initialStock"
+                control={control}
+                render={({ field }) => (
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={field.value || ''}
+                    onChange={(event) => field.onChange(Number(event.target.value))}
+                    placeholder="0"
+                    className={inputClass(!!formErrors.initialStock)}
+                  />
+                )}
+              />
+            </FormField>
+          )}
+          <div className="mt-6 flex flex-wrap justify-end gap-2">
           <AppButton
             variant="secondary"
             onClick={closeForm}
@@ -693,8 +815,8 @@ export default function ProductsPage() {
           </AppButton>
           <AppButton
             variant="primary"
-            onClick={() => void handleSave()}
-            disabled={isSaving}
+            type="submit"
+            disabled={isSaving || (Boolean(editingId) && !isFormDirty)}
           >
             <Save size={14} />
             <span className="ml-2">
@@ -705,7 +827,8 @@ export default function ProductsPage() {
                   : 'Create product'}
             </span>
           </AppButton>
-        </div>
+          </div>
+        </form>
       </AppDialog>
 
       {/* Delete confirmation */}
@@ -722,7 +845,7 @@ export default function ProductsPage() {
       <button
         onClick={openNew}
         className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent-strong)] text-[var(--accent-foreground)] shadow-[0_0_6px_rgba(0,0,0,0.24),0_8px_12px_rgba(0,0,0,0.14)] transition active:scale-95 md:hidden"
-        aria-label="Add product"
+        aria-label="Add item"
       >
         <Plus size={22} />
       </button>
@@ -744,66 +867,4 @@ function inputClass(hasError: boolean) {
 
 function selectClass() {
   return 'w-full rounded-[12px] bg-[var(--surface-muted)]';
-}
-
-function FormField({
-  label,
-  required,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="mb-1.5 block text-sm font-medium text-[var(--muted)]">
-        {label}
-        {required && <span className="text-[var(--status-danger)]"> *</span>}
-      </label>
-      {children}
-      {error && (
-        <p className="mt-1.5 text-xs text-[var(--status-danger)]">{error}</p>
-      )}
-    </div>
-  );
-}
-
-function SortTh({
-  label,
-  field,
-  current,
-  dir,
-  onSort,
-}: {
-  label: string;
-  field: SortField;
-  current: SortField;
-  dir: SortDir;
-  onSort: (f: SortField) => void;
-}) {
-  const active = current === field;
-  return (
-    <th className="px-4 py-3 font-medium">
-      <button
-        onClick={() => onSort(field)}
-        className="inline-flex items-center gap-1 transition hover:text-[var(--foreground)]"
-      >
-        {label}
-        <span className="text-[10px]">
-          {active ? (
-            dir === 'asc' ? (
-              '▲'
-            ) : (
-              '▼'
-            )
-          ) : (
-            <span className="opacity-30">▲▼</span>
-          )}
-        </span>
-      </button>
-    </th>
-  );
 }

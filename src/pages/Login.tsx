@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ShoppingCart, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
-import { ApiError } from '../lib/api-client';
+import { ApiError } from '../lib/api';
 import { useLoginMutation } from '../lib/auth/auth-store';
 import { Card, CardContent } from '#components/ui/card';
 

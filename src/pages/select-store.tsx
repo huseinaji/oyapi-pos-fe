@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router';
 import { ShoppingCart, MapPin, Phone, ChevronRight, Plus, LogOut } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuthStore, useLogoutMutation } from '../lib/auth/auth-store';
 import {
   useListMyStoreQuery,
@@ -16,8 +17,15 @@ export default function SelectStorePage() {
   const stores = data?.rows ?? [];
 
   const handleSelect = async (id: string) => {
-    await selectStoreMutation.mutateAsync(id);
-    navigate('/', { replace: true });
+    try {
+      await selectStoreMutation.mutateAsync(id);
+      navigate('/', { replace: true });
+    } catch (error) {
+      toast.error('Unable to select store', {
+        description:
+          error instanceof Error ? error.message : 'Please try again.',
+      });
+    }
   };
 
   return (

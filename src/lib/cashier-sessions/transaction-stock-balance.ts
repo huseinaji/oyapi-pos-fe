@@ -1,4 +1,4 @@
-import type { SalesInvoice } from '#lib/transaction/transaction-types';
+import type { SalesInvoice } from '@/lib/transaction/transaction-types';
 import type { CashierStockSnapshot } from './cashier-sessions-db';
 
 export function calculateClosingStockFromSales(

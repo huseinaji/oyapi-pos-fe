@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMeQuery } from '#lib/auth/auth-store';
+import { useMeQuery } from '@/lib/auth/auth-store';
 import { itemCategoriesApi } from './item-categories-api';
-import type { CreateStoreItemCategoryDto } from './product-types';
+import type {
+  CreateStoreItemCategoryDto,
+  StoreItemCategoryListResponse,
+} from './product-types';
 
 export const itemCategoryQueryKeys = {
   all: ['item-categories'] as const,
@@ -26,8 +29,18 @@ export function useCreateItemCategoryMutation() {
       if (!storeId) throw new Error('Select a store before creating categories.');
       return itemCategoriesApi.create(storeId, body);
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
+    onSuccess: async (category) => {
+      queryClient.setQueryData<StoreItemCategoryListResponse>(
+        itemCategoryQueryKeys.list(storeId),
+        (current) =>
+          current
+            ? {
+                count: current.count + 1,
+                rows: [...current.rows, category],
+              }
+            : current,
+      );
+      await queryClient.invalidateQueries({
         queryKey: itemCategoryQueryKeys.list(storeId),
       });
     },

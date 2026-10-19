@@ -1,12 +1,22 @@
-import type { FC } from "react"
+import { lazy, Suspense, type FC } from "react"
 import { RoutesIndex } from "./routes"
 import { Toaster } from './components/ui/sonner';
 import { ThemeScript } from './components/theme-script';
 import { DismissToastsOnInteraction } from './components/ui/dismiss-toasts-on-interaction';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+// Devtools are lazy-loaded and only rendered in development.
+// This keeps them out of the production bundle entirely.
+const ReactQueryDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import('@tanstack/react-query-devtools').then((m) => ({
+        default: m.ReactQueryDevtools,
+      })),
+    )
+  : null;
+
 const queryClient = new QueryClient();
+
 export const App: FC = () => {
   return (
     <QueryClientProvider client={queryClient}>
@@ -26,7 +36,11 @@ export const App: FC = () => {
         richColors
       />
       <RoutesIndex />
-      <ReactQueryDevtools initialIsOpen={false} />
+      {ReactQueryDevtools && (
+        <Suspense>
+          <ReactQueryDevtools initialIsOpen={false} />
+        </Suspense>
+      )}
     </QueryClientProvider>
   )
 }

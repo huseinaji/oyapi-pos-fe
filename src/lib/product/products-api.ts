@@ -3,13 +3,18 @@ import type {
   ApiItemResponse,
   CreateItemDto,
   ItemFilters,
+  SellableItemResponse,
   UpdateItemDto,
-} from '#lib/product/product-types';
+} from '@/lib/product/product-types';
 import { Api } from '../api';
 import { fetchAllPages, type PaginatedResponse } from '../api/pagination';
 
 function storeItemsPath(storeId: string): string {
   return `/api/v1/store/${encodeURIComponent(storeId)}/items`;
+}
+
+function sellableItemsPath(storeId: string): string {
+  return `/api/v1/store/${encodeURIComponent(storeId)}/transaction/sellable-item`;
 }
 
 function normalizeItem(value: ApiItemResponse): ApiItem {
@@ -35,6 +40,10 @@ function normalizeItem(value: ApiItemResponse): ApiItem {
 }
 
 export const productsApi = {
+  listSellableItems: (storeId: string) =>
+    Api.get<SellableItemResponse[]>(sellableItemsPath(storeId)).then(
+      (response) => response.data,
+    ),
   list: async (storeId: string, filters: ItemFilters = {}) => {
     const response = await fetchAllPages((page, limit) =>
       Api.get<PaginatedResponse<ApiItemResponse>>(storeItemsPath(storeId), {

@@ -4,10 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ShoppingCart, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router';
-import { Card, CardContent } from '#components/ui/card';
-import { Field, FieldDescription, FieldError, FieldLabel } from '#components/ui/field';
-import { ApiError } from '#lib/api/index';
-import { Button } from '#components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
+import { ApiError } from '@/lib/api/index';
+import { Button } from '@/components/ui/button';
 
 const forgotSchema = z.object({
   email: z.email({ message: 'Enter a valid email' }),
@@ -31,7 +31,6 @@ export default function ForgotPasswordPage() {
   const onSubmit = (data: ForgotData) => {
     setError('');
     // Mock submit — in production, call your reset API
-    console.log(`[Forgot Password data]: ${data}`)
     try {
       setSubmittedEmail(data.email);
       setSubmitted(true);

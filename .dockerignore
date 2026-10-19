@@ -1,0 +1,33 @@
+# Git
+.git
+.gitignore
+
+# Dependencies (installed fresh inside the container)
+node_modules
+
+# Output (rebuilt inside the container)
+dist
+
+# Dev / IDE files
+.vscode
+.idea
+*.local
+*.log*
+
+# OS
+.DS_Store
+
+# Docs / screenshots
+*.png
+*.md
+!README.md
+
+# Rsbuild profiling output
+.rspack-profile-*
+
+# Kiro / agent config (not needed at runtime)
+.agents
+.codex
+.impeccable
+.kiro
+skills-lock.json

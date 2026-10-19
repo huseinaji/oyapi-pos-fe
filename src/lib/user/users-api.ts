@@ -6,14 +6,31 @@ import type {
   UpdateUserDto,
 } from '../../types/api';
 
+type UsersListResponse =
+  ApiUser[] | { rows?: ApiUser[]; data?: ApiUser[] | { rows?: ApiUser[] } };
+
+function unwrapUsers(response: UsersListResponse): ApiUser[] {
+  if (Array.isArray(response)) return response;
+  if (response.rows) return response.rows;
+  if (Array.isArray(response.data)) return response.data;
+  return response.data?.rows ?? [];
+}
+
 export const usersApi = {
   async list() {
-    const response = await Api.get<
-      ApiUser[] | { rows?: ApiUser[]; data?: ApiUser[] }
-    >('/api/v1/users');
-    return Array.isArray(response.data)
-      ? response.data
-      : (response.data.rows ?? response.data.data ?? []);
+    const response = await Api.get<UsersListResponse>('/api/v1/users');
+    return unwrapUsers(response.data);
+  },
+  async findByUsername(username: string) {
+    const response = await Api.get<UsersListResponse>('/api/v1/users', {
+      params: { username },
+    });
+    const normalizedUsername = username.toLowerCase();
+    return (
+      unwrapUsers(response.data).find(
+        (user) => user.username.toLowerCase() === normalizedUsername,
+      ) ?? null
+    );
   },
   get: (id: string) => Api.get<ApiUser>(`/api/v1/users/${id}`).then((response) => response.data),
   update: async (id: string, body: UpdateUserDto) => {

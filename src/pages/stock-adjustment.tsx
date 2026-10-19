@@ -7,15 +7,15 @@ import {
   Save,
   Trash2,
 } from 'lucide-react';
-import { AppButton } from '../components/ui/app-button';
-import { PageHeader } from '../components/ui/page-header';
-import { SectionCard } from '../components/ui/section-card';
-import { AppDialog } from '../components/ui/app-dialog';
-import { useProductsQuery } from '#lib/product/product-store';
-import type { ApiItem } from '#lib/product/product-types';
-import { DataTable } from '#components/ui/data-table';
+import { AppButton } from '@/components/ui/app-button';
+import { PageHeader } from '@/components/ui/page-header';
+import { SectionCard } from '@/components/ui/section-card';
+import { AppDialog } from '@/components/ui/app-dialog';
+import { useProductsQuery } from '@/lib/product/product-store';
+import type { ApiItem } from '@/lib/product/product-types';
+import { DataTable } from '@/components/ui/data-table';
 import { getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
-import { TableCell, TableRow } from '#components/ui/table';
+import { TableCell, TableRow } from '@/components/ui/table';
 
 type AdjustmentLine = {
   id: string;

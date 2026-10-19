@@ -1,13 +1,12 @@
-import { Api } from '#lib/api/index';
-import type { AuthUser } from "#lib/auth/auth-store";
+import { Api } from '@/lib/api/index';
+import type { AuthUser } from '@/lib/auth/auth-store';
 import type {
-  ApiUserRole,
   ApiUserStatus,
   LoginDto,
   LoginResponse,
   LogoutResponse,
 } from '@/types/api';
-import type { StorePayload } from '#lib/stores/store-types';
+import { normalizeStoreRole } from '@/lib/stores/store-types';
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object'
@@ -29,20 +28,22 @@ function mapAuthUser(value: unknown): AuthUser {
     store.id ??
     nestedStore.storeId ??
     nestedStore.id;
+  const storeRole = normalizeStoreRole(store.role ?? user.role) ?? 'CASHIER';
+  const userRole = String(user.role ?? '').toUpperCase();
 
   return {
     id: String(user.sub ?? user.id ?? ''),
     username: String(user.username ?? ''),
     email: String(user.email ?? ''),
-    role: user.role as ApiUserRole,
+    role: userRole === 'ADMIN' ? 'ADMIN' : 'USER',
     status: user.status as ApiUserStatus,
     ...(storeId
       ? {
-          store: {
-            storeId: String(storeId),
-            role: (store.role ?? user.role) as StorePayload['role'],
-          },
-        }
+        store: {
+          storeId: String(storeId),
+          role: storeRole,
+        },
+      }
       : {}),
   };
 }
@@ -54,5 +55,6 @@ export const AuthApi = {
     const response = await Api.get<unknown>('/api/v1/auth/me');
     return mapAuthUser(response.data);
   },
-  logout: () => Api.post<LogoutResponse>('/api/v1/auth/logout').then((res) => res.data),
-}
+  logout: () =>
+    Api.post<LogoutResponse>('/api/v1/auth/logout').then((res) => res.data),
+};

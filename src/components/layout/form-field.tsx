@@ -1,4 +1,9 @@
-import { Field, FieldDescription, FieldError, FieldLabel } from "#components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from '@/components/ui/field';
 
 export function FormField({
   label,
@@ -22,7 +27,9 @@ export function FormField({
       {children}
       <FieldDescription>{description}</FieldDescription>
       {error && (
-        <FieldError className="text-xs text-[var(--status-danger)]">{error}</FieldError>
+        <FieldError className="text-xs text-[var(--status-danger)]">
+          {error}
+        </FieldError>
       )}
     </Field>
   );

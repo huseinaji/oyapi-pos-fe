@@ -1,5 +1,15 @@
 import { useMemo, useState } from 'react';
-import { ShoppingCart, TrendingUp, CalendarRange, ChartNoAxesCombined, Radio } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowRight,
+  CalendarRange,
+  ChartNoAxesCombined,
+  CheckCircle2,
+  Radio,
+  RefreshCw,
+  ShoppingCart,
+  TrendingUp,
+} from 'lucide-react';
 import { Link } from 'react-router';
 import {
   Area,
@@ -17,14 +27,23 @@ import {
   YAxis,
 } from 'recharts';
 
-import { AppButton } from '../components/ui/app-button';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { DateRangePicker } from '../components/ui/date-range-picker';
-import { MetricCard } from '../components/ui/metric-card';
-import { PageHeader } from '../components/ui/page-header';
-import { SectionCard } from '../components/ui/section-card';
-import { AppSelect } from '../components/ui/app-select';
+import { AppButton } from '@/components/ui/app-button';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { MetricCard } from '@/components/ui/metric-card';
+import { PageHeader } from '@/components/ui/page-header';
+import { SectionCard } from '@/components/ui/section-card';
+import { AppSelect } from '@/components/ui/app-select';
+import { useMeQuery } from '@/lib/auth/auth-store';
+import { useCashierSessionsQuery } from '@/lib/cashier-sessions/cashier-sessions-store';
+import type { CashierSession } from '@/lib/cashier-sessions/cashier-sessions-types';
 
 import {
   filterTransactions,
@@ -36,10 +55,14 @@ import {
   getPeriodRange,
   type PeriodFilter,
   type ChartMetric,
-} from '../lib/dashboard-utils';
-import { daysAgoIso, todayIso } from '../lib/transaction-utils';
-import { useRealtimeTransactionsQuery, useTransactionsQuery } from '#lib/transaction/transaction-store';
-import { usePosProductsQuery } from '#lib/product/product-store';
+} from '@/lib/dashboard-utils';
+import { daysAgoIso, todayIso } from '@/lib/transaction-utils';
+import {
+  useRealtimeTransactionsQuery,
+  useTransactionsQuery,
+} from '@/lib/transaction/transaction-store';
+import { mapProduct, useProductsQuery } from '@/lib/product/product-store';
+import { ITEM_TYPE_LABELS } from '@/lib/product/product-types';
 
 const periodOptions: { id: PeriodFilter; label: string }[] = [
   { id: 'today', label: 'Today' },
@@ -62,6 +85,55 @@ const itemSalesColors = [
   '#b78636',
 ];
 
+type StockTypeFilter = 'all' | 'raw_material' | 'finished_good';
+type TrackedStockType = Exclude<StockTypeFilter, 'all'>;
+
+function isTrackedStockType(
+  type: string | undefined,
+): type is TrackedStockType {
+  return type === 'raw_material' || type === 'finished_good';
+}
+
+function toLocalDateValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function sessionDateValue(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : toLocalDateValue(date);
+}
+
+function formatQuantity(value: number): string {
+  return new Intl.NumberFormat('id-ID', {
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function getSessionForDate(
+  sessions: CashierSession[],
+  date: string,
+  today: string,
+): { session: CashierSession | null; isFallback: boolean } {
+  const ordered = [...sessions].sort(
+    (a, b) => Date.parse(b.openedAt) - Date.parse(a.openedAt),
+  );
+  const onDate = ordered.filter(
+    (session) => sessionDateValue(session.openedAt) === date,
+  );
+  const activeSession = onDate.find((session) => session.status === 'OPEN');
+
+  if (activeSession) return { session: activeSession, isFallback: false };
+  if (onDate[0]) return { session: onDate[0], isFallback: false };
+  if (date === today && ordered[0]) {
+    return { session: ordered[0], isFallback: true };
+  }
+
+  return { session: null, isFallback: false };
+}
+
 export default function Home() {
   // ---------------------------------------------------------------------------
   // Zustand state
@@ -72,8 +144,21 @@ export default function Home() {
   const realtimeTransactionsQuery = useRealtimeTransactionsQuery();
   const realtimeTransactions = realtimeTransactionsQuery.data ?? [];
 
-  const productsQuery = usePosProductsQuery();
-  const products = productsQuery.data;
+  const { data: currentUser } = useMeQuery();
+  const cashierSessionsQuery = useCashierSessionsQuery(
+    currentUser?.store?.storeId,
+  );
+  const productsQuery = useProductsQuery();
+  const rawProducts = productsQuery.data?.rows ?? [];
+  const products = useMemo(() => rawProducts.map(mapProduct), [rawProducts]);
+  const stockWatchItems = useMemo(
+    () =>
+      products
+        .filter((product) => product.stock <= 5)
+        .sort((a, b) => a.stock - b.stock || a.name.localeCompare(b.name))
+        .slice(0, 3),
+    [products],
+  );
 
   // ---------------------------------------------------------------------------
   // Period filter
@@ -84,12 +169,80 @@ export default function Home() {
   const [itemCategoryFilter, setItemCategoryFilter] = useState('all');
   const [itemCashierFilter, setItemCashierFilter] = useState('all');
   const [itemPaymentFilter, setItemPaymentFilter] = useState('all');
-  const [itemSalesMetric, setItemSalesMetric] = useState<ItemSalesMetric>('revenue');
+  const [itemSalesMetric, setItemSalesMetric] =
+    useState<ItemSalesMetric>('revenue');
   const [itemSalesChart, setItemSalesChart] = useState<ItemSalesChart>('bar');
+  const [sessionReportDate, setSessionReportDate] = useState(() =>
+    toLocalDateValue(new Date()),
+  );
+  const [sessionStockType, setSessionStockType] =
+    useState<StockTypeFilter>('all');
+  const [sessionItemId, setSessionItemId] = useState('');
 
   const [customFrom, setCustomFrom] = useState(daysAgoIso(29));
 
   const [customTo, setCustomTo] = useState(todayIso());
+
+  const todayLocalDate = toLocalDateValue(new Date());
+  const selectedSession = useMemo(
+    () =>
+      getSessionForDate(
+        cashierSessionsQuery.data ?? [],
+        sessionReportDate,
+        todayLocalDate,
+      ),
+    [cashierSessionsQuery.data, sessionReportDate, todayLocalDate],
+  );
+  const sessionStockItems = useMemo(() => {
+    const session = selectedSession.session;
+    if (!session) return [];
+
+    const productById = new Map(
+      rawProducts.map((product) => [product.id, product]),
+    );
+
+    return session.openingStock.flatMap((item) => {
+      const product = productById.get(item.itemId);
+      if (!product || !isTrackedStockType(product.type)) return [];
+      const type = product.type;
+      if (sessionStockType !== 'all' && type !== sessionStockType) return [];
+
+      return [
+        {
+          itemId: item.itemId,
+          name: product.name ?? item.itemName,
+          type,
+          uom: item.uom || product?.uom || '',
+          openingQty: item.quantity,
+          soldQty: item.soldQuantity ?? 0,
+        },
+      ];
+    });
+  }, [selectedSession.session, rawProducts, sessionStockType]);
+  const selectedSessionItem =
+    sessionStockItems.find((item) => item.itemId === sessionItemId) ??
+    sessionStockItems[0];
+  const selectedSessionItemId = selectedSessionItem?.itemId ?? '';
+  const sessionStockDonutData = selectedSessionItem
+    ? [
+        {
+          name: 'Sold',
+          value: Math.min(
+            selectedSessionItem.soldQty,
+            selectedSessionItem.openingQty,
+          ),
+          color: 'var(--accent)',
+        },
+        {
+          name: 'Remaining',
+          value: Math.max(
+            selectedSessionItem.openingQty - selectedSessionItem.soldQty,
+            0,
+          ),
+          color: 'var(--border-strong)',
+        },
+      ].filter((item) => item.value > 0)
+    : [];
 
   // ---------------------------------------------------------------------------
   // Filtered transactions
@@ -116,10 +269,12 @@ export default function Home() {
 
   const todayKey = new Date().toDateString();
   const todayTransactions = useMemo(
-    () => realtimeTransactions.filter((transaction) =>
-      transaction.status === 'complete' &&
-      new Date(transaction.recordedAt).toDateString() === todayKey,
-    ),
+    () =>
+      realtimeTransactions.filter(
+        (transaction) =>
+          transaction.status === 'complete' &&
+          new Date(transaction.recordedAt).toDateString() === todayKey,
+      ),
     [realtimeTransactions, todayKey],
   );
   const productById = useMemo(
@@ -127,33 +282,53 @@ export default function Home() {
     [products],
   );
   const itemCategories = useMemo(
-    () => [...new Set(products.map((product) => product.category || 'Uncategorized'))].sort(),
+    () =>
+      [
+        ...new Set(
+          products.map((product) => product.category || 'Uncategorized'),
+        ),
+      ].sort(),
     [products],
   );
   const itemCashiers = useMemo(
-    () => [...new Set(todayTransactions.map((transaction) => transaction.cashier))].sort(),
+    () =>
+      [
+        ...new Set(todayTransactions.map((transaction) => transaction.cashier)),
+      ].sort(),
     [todayTransactions],
   );
 
   const itemSalesReport = useMemo(() => {
     const matchedTransactionIds = new Set<string>();
-    const grouped = new Map<string, {
-      itemId: string;
-      name: string;
-      category: string;
-      revenue: number;
-      units: number;
-      transactionIds: Set<string>;
-    }>();
+    const grouped = new Map<
+      string,
+      {
+        itemId: string;
+        name: string;
+        category: string;
+        revenue: number;
+        units: number;
+        transactionIds: Set<string>;
+      }
+    >();
 
     for (const transaction of todayTransactions) {
-      if (itemCashierFilter !== 'all' && transaction.cashier !== itemCashierFilter) continue;
-      if (itemPaymentFilter !== 'all' && transaction.paymentMethod !== itemPaymentFilter) continue;
+      if (
+        itemCashierFilter !== 'all' &&
+        transaction.cashier !== itemCashierFilter
+      )
+        continue;
+      if (
+        itemPaymentFilter !== 'all' &&
+        transaction.paymentMethod !== itemPaymentFilter
+      )
+        continue;
 
       for (const line of transaction.items) {
         const product = productById.get(line.productId);
         const category = product?.category || 'Uncategorized';
-        if (itemCategoryFilter !== 'all' && category !== itemCategoryFilter) continue;
+        if (itemCategoryFilter !== 'all' && category !== itemCategoryFilter)
+          continue;
 
         matchedTransactionIds.add(transaction.id);
         const current = grouped.get(line.productId) ?? {
@@ -195,11 +370,14 @@ export default function Home() {
   ]);
 
   const reportUpdatedAt = realtimeTransactionsQuery.dataUpdatedAt
-    ? new Date(realtimeTransactionsQuery.dataUpdatedAt).toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      })
+    ? new Date(realtimeTransactionsQuery.dataUpdatedAt).toLocaleTimeString(
+        'id-ID',
+        {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        },
+      )
     : '—';
 
   // ---------------------------------------------------------------------------
@@ -291,11 +469,17 @@ export default function Home() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 sm:space-y-6">
       <PageHeader
         eyebrow="Overview"
         title="Dashboard"
-        description={`${getPeriodLabel(period)} · ${filteredComplete.length} completed sales`}
+        description={
+          transactionsQuery.isLoading
+            ? `Loading sales · ${getPeriodLabel(period)}`
+            : transactionsQuery.isError
+              ? 'Sales data unavailable'
+              : `${getPeriodLabel(period)} · ${filteredComplete.length} completed sales`
+        }
         action={
           <Link to="/pos">
             <AppButton variant="inverted">
@@ -307,19 +491,21 @@ export default function Home() {
       />
 
       {/* Period filter */}
-      <div className="flex flex-col gap-3 rounded-[12px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_0_0.5px_rgba(0,0,0,0.14),0_1px_1px_rgba(0,0,0,0.24)]">
+      <div className="flex flex-col gap-3 rounded-[12px] border border-[var(--border)] bg-[var(--card)] p-3 shadow-[0_0_0.5px_rgba(0,0,0,0.14),0_1px_1px_rgba(0,0,0,0.24)] sm:p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-sm font-medium text-[var(--muted)]">
             <CalendarRange size={16} />
             Date range
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             {periodOptions.map((opt) => (
               <button
                 key={opt.id}
+                type="button"
+                aria-pressed={period === opt.id}
                 onClick={() => setPeriod(opt.id)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition active:scale-95 ${
+                className={`min-h-10 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 active:scale-[0.98] sm:px-4 ${
                   period === opt.id
                     ? 'bg-[var(--accent-strong)] text-[var(--accent-foreground)]'
                     : 'border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--muted)] hover:border-[var(--accent)]/40'
@@ -353,50 +539,215 @@ export default function Home() {
       </div>
 
       {/* Metrics */}
-      <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <MetricCard
           title="Revenue"
-          value={formatRp(metrics.revenue, true)}
-          hint={
-            metrics.revenueDelta >= 0
-              ? `+${metrics.revenueDelta}% vs previous period`
-              : `${metrics.revenueDelta}% vs previous period`
+          value={
+            transactionsQuery.isLoading
+              ? 'Loading…'
+              : transactionsQuery.isError
+                ? 'Unavailable'
+                : formatRp(metrics.revenue, true)
           }
-          trend={metrics.revenueDelta >= 0 ? 'up' : 'down'}
+          hint={
+            transactionsQuery.isLoading
+              ? 'Loading sales'
+              : transactionsQuery.isError
+                ? 'Sales data unavailable'
+                : metrics.revenueDelta >= 0
+                  ? `+${metrics.revenueDelta}% vs previous period`
+                  : `${metrics.revenueDelta}% vs previous period`
+          }
+          trend={
+            transactionsQuery.isLoading || transactionsQuery.isError
+              ? 'neutral'
+              : metrics.revenueDelta >= 0
+                ? 'up'
+                : 'down'
+          }
         />
 
         <MetricCard
           title="Transactions"
-          value={String(metrics.orderCount)}
+          value={
+            transactionsQuery.isLoading
+              ? 'Loading…'
+              : transactionsQuery.isError
+                ? 'Unavailable'
+                : String(metrics.orderCount)
+          }
           hint={
-            metrics.pendingCount > 0
-              ? `${metrics.pendingCount} pending payment`
-              : 'Completed sales only'
+            transactionsQuery.isLoading
+              ? 'Loading sales'
+              : transactionsQuery.isError
+                ? 'Sales data unavailable'
+                : metrics.pendingCount > 0
+                  ? `${metrics.pendingCount} pending payment`
+                  : 'Completed sales only'
           }
           trend="neutral"
         />
 
         <MetricCard
           title="Avg. order value"
-          value={formatRp(metrics.avgOrder, true)}
-          hint={`Peak hour ${metrics.peakHour}`}
+          value={
+            transactionsQuery.isLoading
+              ? 'Loading…'
+              : transactionsQuery.isError
+                ? 'Unavailable'
+                : formatRp(metrics.avgOrder, true)
+          }
+          hint={
+            transactionsQuery.isLoading
+              ? 'Loading sales'
+              : transactionsQuery.isError
+                ? 'Sales data unavailable'
+                : `Peak hour ${metrics.peakHour}`
+          }
           trend="neutral"
         />
 
         <MetricCard
           title="Items"
-          value={String(products.length)}
-          hint={
-            metrics.lowStock + metrics.outOfStock > 0
-              ? `${metrics.lowStock} low stock · ${metrics.outOfStock} out of stock`
-              : 'All stock healthy'
+          value={
+            productsQuery.isLoading
+              ? 'Loading…'
+              : productsQuery.isError
+                ? 'Unavailable'
+                : String(products.length)
           }
-          trend={metrics.lowStock + metrics.outOfStock > 0 ? 'down' : 'up'}
+          hint={
+            productsQuery.isLoading
+              ? 'Loading inventory'
+              : productsQuery.isError
+                ? 'Inventory data unavailable'
+                : metrics.lowStock + metrics.outOfStock > 0
+                  ? `${metrics.lowStock} low stock · ${metrics.outOfStock} out of stock`
+                  : 'All stock healthy'
+          }
+          trend={
+            productsQuery.isLoading || productsQuery.isError
+              ? 'neutral'
+              : metrics.lowStock + metrics.outOfStock > 0
+                ? 'down'
+                : 'up'
+          }
         />
       </div>
-      
-      <div className='flex flex-col gap-4 md:flex-row'>
-        <Card className="overflow-hidden border-[var(--accent)]/20 bg-[var(--card)] shadow-[0_18px_50px_-32px_var(--accent)]">
+
+      <section
+        aria-labelledby="stock-watch-title"
+        aria-busy={productsQuery.isLoading}
+        className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.08)] sm:p-5"
+      >
+        <h2 id="stock-watch-title" className="sr-only">
+          Inventory stock watch
+        </h2>
+        {productsQuery.isLoading ? (
+          <div className="flex min-h-12 items-center gap-3" role="status">
+            <div className="size-9 animate-pulse rounded-lg bg-[var(--surface-muted)]" />
+            <div className="space-y-2">
+              <div className="h-4 w-32 animate-pulse rounded bg-[var(--surface-muted)]" />
+              <div className="h-3 w-48 max-w-[60vw] animate-pulse rounded bg-[var(--surface-muted)]" />
+            </div>
+            <span className="sr-only">Loading inventory status</span>
+          </div>
+        ) : productsQuery.isError ? (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertTriangle
+                size={19}
+                className="mt-0.5 shrink-0 text-[var(--status-danger)]"
+                aria-hidden="true"
+              />
+              <div>
+                <h2 className="font-semibold">Stock status unavailable</h2>
+                <p className="mt-1 text-sm text-[var(--muted)]">
+                  Inventory could not be loaded. Try again to check for
+                  low-stock items.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void productsQuery.refetch()}
+              className="min-h-10 self-start sm:self-auto"
+            >
+              <RefreshCw size={14} aria-hidden="true" />
+              Retry
+            </Button>
+          </div>
+        ) : stockWatchItems.length > 0 ? (
+          <div className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertTriangle
+                  size={19}
+                  className="mt-0.5 shrink-0 text-[var(--status-pending)]"
+                  aria-hidden="true"
+                />
+                <div>
+                  <h2 className="font-semibold">Stock needs attention</h2>
+                  <p className="mt-1 text-sm text-[var(--muted)]">
+                    {metrics.outOfStock} out of stock · {metrics.lowStock} low
+                    stock
+                  </p>
+                </div>
+              </div>
+              <Link
+                to="/products"
+                className="inline-flex min-h-10 items-center gap-2 self-start rounded-lg px-3 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] sm:self-auto"
+              >
+                Review inventory
+                <ArrowRight size={15} aria-hidden="true" />
+              </Link>
+            </div>
+            <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {stockWatchItems.map((product) => (
+                <li key={product.id}>
+                  <Link
+                    to={`/products/${product.id}`}
+                    className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-[var(--border)] px-3 py-2 transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium">
+                      {product.name}
+                    </span>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums ${
+                        product.stock === 0
+                          ? 'bg-[var(--status-danger)]/10 text-[var(--status-danger)]'
+                          : 'bg-[var(--status-pending)]/15 text-[var(--foreground)]'
+                      }`}
+                    >
+                      {product.stock === 0
+                        ? 'Out of stock'
+                        : `${product.stock} left`}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="flex min-h-12 items-center gap-3">
+            <CheckCircle2
+              size={19}
+              className="shrink-0 text-[var(--status-success)]"
+              aria-hidden="true"
+            />
+            <div>
+              <h2 className="font-semibold">Stock looks healthy</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                No items are at or below 5 units.
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
+        <Card className="min-w-0 overflow-hidden border-[var(--border)] bg-[var(--card)]">
           <CardHeader className="gap-4 border-b border-[var(--border)]/70 sm:flex sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="mb-1 flex items-center gap-2 text-[var(--accent)]">
@@ -406,7 +757,9 @@ export default function Home() {
                 </span>
               </div>
               <CardTitle className="text-lg">
-                {chartMetric === 'revenue' ? 'Revenue trend' : 'Completed orders'}
+                {chartMetric === 'revenue'
+                  ? 'Revenue trend'
+                  : 'Completed orders'}
               </CardTitle>
               <CardDescription>
                 {getPeriodLabel(period)} · completed sales only
@@ -431,8 +784,12 @@ export default function Home() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-5 pt-5 lg:grid-cols-[minmax(0,1fr)_180px]">
-            <div className="h-[260px] min-w-0 sm:h-[320px]" role="img" aria-label={`${chartMetric === 'revenue' ? 'Revenue' : 'Orders'} chart for ${getPeriodLabel(period)}`}>
+          <CardContent className="grid min-w-0 gap-5 pt-5 lg:grid-cols-[minmax(0,1fr)_180px]">
+            <div
+              className="h-[240px] min-w-0 sm:h-[300px]"
+              role="img"
+              aria-label={`${chartMetric === 'revenue' ? 'Revenue' : 'Orders'} chart for ${getPeriodLabel(period)}`}
+            >
               {transactionsQuery.isLoading ? (
                 <div className="h-full animate-pulse rounded-lg bg-[var(--surface-muted)]" />
               ) : transactionsQuery.isError ? (
@@ -441,14 +798,35 @@ export default function Home() {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 12, right: 8, bottom: 0, left: 8 }}>
+                  <AreaChart
+                    data={chartData}
+                    margin={{ top: 12, right: 8, bottom: 0, left: 8 }}
+                  >
                     <defs>
-                      <linearGradient id="dashboard-report-fill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="var(--accent)" stopOpacity={0.015} />
+                      <linearGradient
+                        id="dashboard-report-fill"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor="var(--accent)"
+                          stopOpacity={0.3}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="var(--accent)"
+                          stopOpacity={0.015}
+                        />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 6" />
+                    <CartesianGrid
+                      vertical={false}
+                      stroke="var(--border)"
+                      strokeDasharray="3 6"
+                    />
                     <XAxis
                       dataKey="label"
                       axisLine={false}
@@ -457,16 +835,22 @@ export default function Home() {
                       tickMargin={12}
                     />
                     <YAxis
-                      width={64}
+                      width={54}
                       axisLine={false}
                       tickLine={false}
                       tick={{ fill: 'var(--muted)', fontSize: 10 }}
                       tickFormatter={(value: number) =>
-                        chartMetric === 'revenue' ? formatRp(value, true) : String(value)
+                        chartMetric === 'revenue'
+                          ? formatRp(value, true)
+                          : String(value)
                       }
                     />
                     <Tooltip
-                      cursor={{ stroke: 'var(--accent)', strokeDasharray: '4 4', strokeOpacity: 0.5 }}
+                      cursor={{
+                        stroke: 'var(--accent)',
+                        strokeDasharray: '4 4',
+                        strokeOpacity: 0.5,
+                      }}
                       contentStyle={{
                         backgroundColor: 'var(--card)',
                         border: '1px solid var(--border)',
@@ -479,7 +863,9 @@ export default function Home() {
                         chartMetric === 'revenue'
                           ? formatRp(Number(value))
                           : `${Number(value)} orders`,
-                        chartMetric === 'revenue' ? 'Revenue' : 'Completed orders',
+                        chartMetric === 'revenue'
+                          ? 'Revenue'
+                          : 'Completed orders',
                       ]}
                     />
                     <Area
@@ -488,7 +874,11 @@ export default function Home() {
                       stroke="var(--accent)"
                       strokeWidth={2.5}
                       fill="url(#dashboard-report-fill)"
-                      activeDot={{ r: 5, strokeWidth: 0, fill: 'var(--accent-strong)' }}
+                      activeDot={{
+                        r: 5,
+                        strokeWidth: 0,
+                        fill: 'var(--accent-strong)',
+                      }}
                       animationDuration={450}
                     />
                   </AreaChart>
@@ -498,37 +888,53 @@ export default function Home() {
             <div className="flex flex-row items-end justify-between gap-4 border-t border-[var(--border)]/70 pt-4 lg:flex-col lg:items-start lg:justify-center lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
               <div>
                 <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
-                  {chartMetric === 'revenue' ? 'Period revenue' : 'Completed orders'}
+                  {chartMetric === 'revenue'
+                    ? 'Period revenue'
+                    : 'Completed orders'}
                 </p>
                 <p className="mt-2 text-2xl font-bold tracking-tight text-[var(--foreground)]">
-                  {chartMetric === 'revenue' ? formatRp(chartTotal, true) : chartTotal}
+                  {transactionsQuery.isLoading
+                    ? 'Loading…'
+                    : transactionsQuery.isError
+                      ? 'Unavailable'
+                      : chartMetric === 'revenue'
+                        ? formatRp(chartTotal, true)
+                        : chartTotal}
                 </p>
               </div>
               <p className="text-right text-xs text-[var(--muted)] lg:text-left">
-                {chartData.length} report intervals · hover chart for details
+                {chartData.length} report intervals · select a point for details
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden border-[var(--accent)]/20 bg-[var(--card)] shadow-[0_18px_50px_-32px_var(--accent)]">
+        <Card className="min-w-0 overflow-hidden border-[var(--border)] bg-[var(--card)]">
           <CardHeader className="gap-4 border-b border-[var(--border)]/70 xl:flex xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="mb-1 flex items-center gap-2 text-[var(--status-success)]">
                 <Radio size={14} />
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em]">Live · refresh 15s</span>
-                <span className="text-[10px] text-[var(--muted)]">Updated {reportUpdatedAt}</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em]">
+                  Live · refresh 15s
+                </span>
+                <span className="text-[10px] text-[var(--muted)]">
+                  Updated {reportUpdatedAt}
+                </span>
               </div>
               <CardTitle className="text-lg">Today's sales by item</CardTitle>
-              <CardDescription>Completed POS transactions · local store time</CardDescription>
+              <CardDescription>
+                Completed POS transactions · local store time
+              </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)]/70 p-1">
-                {([
-                  ['revenue', 'Revenue'],
-                  ['units', 'Units'],
-                  ['orders', 'Orders'],
-                ] as const).map(([metric, label]) => (
+                {(
+                  [
+                    ['revenue', 'Revenue'],
+                    ['units', 'Units'],
+                    ['orders', 'Orders'],
+                  ] as const
+                ).map(([metric, label]) => (
                   <Button
                     key={metric}
                     size="sm"
@@ -568,7 +974,10 @@ export default function Home() {
                 onValueChange={setItemCategoryFilter}
                 options={[
                   { value: 'all', label: 'All categories' },
-                  ...itemCategories.map((category) => ({ value: category, label: category })),
+                  ...itemCategories.map((category) => ({
+                    value: category,
+                    label: category,
+                  })),
                 ]}
               />
               <AppSelect
@@ -577,7 +986,10 @@ export default function Home() {
                 onValueChange={setItemCashierFilter}
                 options={[
                   { value: 'all', label: 'All cashiers' },
-                  ...itemCashiers.map((cashier) => ({ value: cashier, label: cashier })),
+                  ...itemCashiers.map((cashier) => ({
+                    value: cashier,
+                    label: cashier,
+                  })),
                 ]}
               />
               <AppSelect
@@ -594,20 +1006,48 @@ export default function Home() {
 
             <div className="grid grid-cols-3 gap-2">
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)]/50 px-3 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">Revenue</p>
-                <p className="mt-1 truncate text-sm font-bold">{formatRp(itemSalesReport.totals.revenue, true)}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">
+                  Revenue
+                </p>
+                <p className="mt-1 truncate text-sm font-bold">
+                  {realtimeTransactionsQuery.isLoading
+                    ? 'Loading…'
+                    : realtimeTransactionsQuery.isError
+                      ? 'Unavailable'
+                      : formatRp(itemSalesReport.totals.revenue, true)}
+                </p>
               </div>
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)]/50 px-3 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">Units sold</p>
-                <p className="mt-1 truncate text-sm font-bold">{itemSalesReport.totals.units}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">
+                  Units sold
+                </p>
+                <p className="mt-1 truncate text-sm font-bold">
+                  {realtimeTransactionsQuery.isLoading
+                    ? 'Loading…'
+                    : realtimeTransactionsQuery.isError
+                      ? 'Unavailable'
+                      : itemSalesReport.totals.units}
+                </p>
               </div>
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)]/50 px-3 py-2.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">Orders</p>
-                <p className="mt-1 truncate text-sm font-bold">{itemSalesReport.totals.orders}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">
+                  Orders
+                </p>
+                <p className="mt-1 truncate text-sm font-bold">
+                  {realtimeTransactionsQuery.isLoading
+                    ? 'Loading…'
+                    : realtimeTransactionsQuery.isError
+                      ? 'Unavailable'
+                      : itemSalesReport.totals.orders}
+                </p>
               </div>
             </div>
 
-            <div className="h-[300px] min-w-0 sm:h-[360px]" role="img" aria-label={`Today's item sales by ${itemSalesMetric}`}>
+            <div
+              className="h-[280px] min-w-0 sm:h-[320px]"
+              role="img"
+              aria-label={`Today's item sales by ${itemSalesMetric}`}
+            >
               {realtimeTransactionsQuery.isLoading ? (
                 <div className="h-full animate-pulse rounded-lg bg-[var(--surface-muted)]" />
               ) : realtimeTransactionsQuery.isError ? (
@@ -617,8 +1057,12 @@ export default function Home() {
               ) : itemSalesReport.rows.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border)] text-center">
                   <ShoppingCart size={22} className="text-[var(--muted)]" />
-                  <p className="text-sm font-medium">No completed item sales match these filters.</p>
-                  <p className="text-xs text-[var(--muted)]">This report refreshes automatically every 15 seconds.</p>
+                  <p className="text-sm font-medium">
+                    No completed item sales match these filters.
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">
+                    This report refreshes automatically every 15 seconds.
+                  </p>
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -628,24 +1072,35 @@ export default function Home() {
                       layout="vertical"
                       margin={{ top: 8, right: 20, bottom: 8, left: 8 }}
                     >
-                      <CartesianGrid horizontal={false} stroke="var(--border)" strokeDasharray="3 6" />
+                      <CartesianGrid
+                        horizontal={false}
+                        stroke="var(--border)"
+                        strokeDasharray="3 6"
+                      />
                       <XAxis
                         type="number"
                         axisLine={false}
                         tickLine={false}
                         tick={{ fill: 'var(--muted)', fontSize: 10 }}
-                        tickFormatter={(value: number) => itemSalesMetric === 'revenue' ? formatRp(value, true) : String(value)}
+                        tickFormatter={(value: number) =>
+                          itemSalesMetric === 'revenue'
+                            ? formatRp(value, true)
+                            : String(value)
+                        }
                       />
                       <YAxis
                         type="category"
                         dataKey="name"
-                        width={112}
+                        width={96}
                         axisLine={false}
                         tickLine={false}
                         tick={{ fill: 'var(--foreground)', fontSize: 11 }}
                       />
                       <Tooltip
-                        cursor={{ fill: 'var(--surface-accent)', fillOpacity: 0.35 }}
+                        cursor={{
+                          fill: 'var(--surface-accent)',
+                          fillOpacity: 0.35,
+                        }}
                         contentStyle={{
                           backgroundColor: 'var(--card)',
                           border: '1px solid var(--border)',
@@ -654,14 +1109,29 @@ export default function Home() {
                           boxShadow: '0 12px 32px rgba(0,0,0,0.12)',
                         }}
                         formatter={(value) => [
-                          itemSalesMetric === 'revenue' ? formatRp(Number(value)) : Number(value),
-                          itemSalesMetric === 'revenue' ? 'Revenue' : itemSalesMetric === 'units' ? 'Units sold' : 'Orders',
+                          itemSalesMetric === 'revenue'
+                            ? formatRp(Number(value))
+                            : Number(value),
+                          itemSalesMetric === 'revenue'
+                            ? 'Revenue'
+                            : itemSalesMetric === 'units'
+                              ? 'Units sold'
+                              : 'Orders',
                         ]}
                         labelFormatter={(name) => String(name)}
                       />
-                      <Bar dataKey={itemSalesMetric} radius={[0, 7, 7, 0]} maxBarSize={28}>
+                      <Bar
+                        dataKey={itemSalesMetric}
+                        radius={[0, 7, 7, 0]}
+                        maxBarSize={28}
+                      >
                         {itemSalesReport.rows.map((item, index) => (
-                          <Cell key={item.itemId} fill={itemSalesColors[index % itemSalesColors.length]} />
+                          <Cell
+                            key={item.itemId}
+                            fill={
+                              itemSalesColors[index % itemSalesColors.length]
+                            }
+                          />
                         ))}
                       </Bar>
                     </BarChart>
@@ -675,8 +1145,14 @@ export default function Home() {
                           color: 'var(--foreground)',
                         }}
                         formatter={(value) => [
-                          itemSalesMetric === 'revenue' ? formatRp(Number(value)) : Number(value),
-                          itemSalesMetric === 'revenue' ? 'Revenue' : itemSalesMetric === 'units' ? 'Units sold' : 'Orders',
+                          itemSalesMetric === 'revenue'
+                            ? formatRp(Number(value))
+                            : Number(value),
+                          itemSalesMetric === 'revenue'
+                            ? 'Revenue'
+                            : itemSalesMetric === 'units'
+                              ? 'Units sold'
+                              : 'Orders',
                         ]}
                       />
                       <Legend verticalAlign="bottom" height={32} />
@@ -692,7 +1168,12 @@ export default function Home() {
                         animationDuration={450}
                       >
                         {itemSalesReport.rows.map((item, index) => (
-                          <Cell key={item.itemId} fill={itemSalesColors[index % itemSalesColors.length]} />
+                          <Cell
+                            key={item.itemId}
+                            fill={
+                              itemSalesColors[index % itemSalesColors.length]
+                            }
+                          />
                         ))}
                       </Pie>
                     </PieChart>
@@ -701,14 +1182,311 @@ export default function Home() {
               )}
             </div>
             <p className="text-xs text-[var(--muted)]">
-              Showing top {itemSalesReport.rows.length} items · total{' '}
-              {itemSalesMetric === 'revenue'
-                ? formatRp(itemSalesReport.totals.revenue)
-                : `${itemSalesReport.totals[itemSalesMetric]} ${itemSalesMetric === 'units' ? 'units sold' : 'orders'}`}
+              {realtimeTransactionsQuery.isLoading
+                ? "Loading today's item sales…"
+                : realtimeTransactionsQuery.isError
+                  ? "Today's item sales are unavailable."
+                  : itemSalesReport.rows.length === 0
+                    ? 'No item sales match these filters.'
+                    : `Showing top ${itemSalesReport.rows.length} items · total ${
+                        itemSalesMetric === 'revenue'
+                          ? formatRp(itemSalesReport.totals.revenue)
+                          : `${itemSalesReport.totals[itemSalesMetric]} ${
+                              itemSalesMetric === 'units'
+                                ? 'units sold'
+                                : 'orders'
+                            }`
+                      }`}
             </p>
           </CardContent>
         </Card>
       </div>
+
+      <Card className="min-w-0 overflow-hidden border-[var(--border)] bg-[var(--card)]">
+        <CardHeader className="gap-4 border-b border-[var(--border)]/70 sm:flex sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-lg">
+              Session stock: opening vs sold
+            </CardTitle>
+            <CardDescription>
+              Compare opening stock with sold quantity for Raw Materials and
+              Finished Goods using the quantities recorded in the cashier
+              session.
+            </CardDescription>
+          </div>
+          <div className="w-full sm:w-auto sm:min-w-48">
+            <label
+              htmlFor="session-stock-date"
+              className="mb-1.5 block text-xs font-medium text-[var(--muted)]"
+            >
+              Session date
+            </label>
+            <input
+              id="session-stock-date"
+              type="date"
+              value={sessionReportDate}
+              max={todayLocalDate}
+              onChange={(event) => {
+                setSessionReportDate(event.target.value);
+                setSessionItemId('');
+              }}
+              className="min-h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--foreground)] outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5 pt-5">
+          {cashierSessionsQuery.isLoading ||
+          productsQuery.isLoading ||
+          realtimeTransactionsQuery.isLoading ? (
+            <div
+              className="flex min-h-48 items-center justify-center text-sm text-[var(--muted)]"
+              role="status"
+            >
+              Loading session stock…
+            </div>
+          ) : cashierSessionsQuery.isError ||
+            productsQuery.isError ||
+            realtimeTransactionsQuery.isError ? (
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-[var(--border)] p-6 text-center">
+              <p className="text-sm text-[var(--status-danger)]" role="alert">
+                Session stock data is unavailable. Retry to load opening and
+                sales quantities.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-10"
+                onClick={() => {
+                  if (cashierSessionsQuery.isError)
+                    void cashierSessionsQuery.refetch();
+                  if (productsQuery.isError) void productsQuery.refetch();
+                  if (realtimeTransactionsQuery.isError)
+                    void realtimeTransactionsQuery.refetch();
+                }}
+              >
+                <RefreshCw size={14} aria-hidden="true" />
+                Retry
+              </Button>
+            </div>
+          ) : !selectedSession.session ? (
+            <div className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border)] text-center">
+              <CalendarRange
+                size={22}
+                className="text-[var(--muted)]"
+                aria-hidden="true"
+              />
+              <p className="text-sm font-medium">
+                No cashier session on this date.
+              </p>
+              <p className="text-xs text-[var(--muted)]">
+                Choose another date to view its opening and sold quantities.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold">
+                    {selectedSession.isFallback
+                      ? 'Latest cashier session'
+                      : selectedSession.session.status === 'OPEN'
+                        ? 'Active cashier session'
+                        : 'Closed cashier session'}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    {selectedSession.isFallback
+                      ? `No session on today’s date · opened ${new Date(
+                          selectedSession.session.openedAt,
+                        ).toLocaleDateString('id-ID')}`
+                      : `Opened ${new Date(
+                          selectedSession.session.openedAt,
+                        ).toLocaleString('id-ID', {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}`}
+                    {' · '}
+                    {selectedSession.session.openedBy.username}
+                  </p>
+                </div>
+                <div
+                  className="grid grid-cols-3 gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-1"
+                  role="group"
+                  aria-label="Filter session stock by item type"
+                >
+                  {(
+                    [
+                      ['all', 'All'],
+                      ['raw_material', 'Raw material'],
+                      ['finished_good', 'Finished good'],
+                    ] as const
+                  ).map(([type, label]) => (
+                    <button
+                      key={type}
+                      type="button"
+                      aria-pressed={sessionStockType === type}
+                      onClick={() => {
+                        setSessionStockType(type);
+                        setSessionItemId('');
+                      }}
+                      className={`min-h-10 rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                        sessionStockType === type
+                          ? 'bg-[var(--card)] text-[var(--foreground)] shadow-sm'
+                          : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {sessionStockItems.length === 0 ? (
+                <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border)] text-center">
+                  <p className="text-sm font-medium">
+                    No opening stock for this item type in the session.
+                  </p>
+                  <p className="text-xs text-[var(--muted)]">
+                    Choose another type or a date with a recorded cashier
+                    session.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,0.8fr)] lg:items-center">
+                  <div className="space-y-4">
+                    <AppSelect
+                      aria-label="Select item for session stock comparison"
+                      value={selectedSessionItemId}
+                      onValueChange={setSessionItemId}
+                      options={sessionStockItems.map((item) => ({
+                        value: item.itemId,
+                        label: `${item.name} · ${ITEM_TYPE_LABELS[item.type]}`,
+                      }))}
+                    />
+                    {selectedSessionItem && (
+                      <>
+                        <div>
+                          <p className="text-sm font-medium">
+                            {selectedSessionItem.name}
+                          </p>
+                          <p className="mt-1 text-xs text-[var(--muted)]">
+                            {ITEM_TYPE_LABELS[selectedSessionItem.type]}
+                          </p>
+                        </div>
+                        <dl className="grid grid-cols-2 gap-3">
+                          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)]/50 p-3">
+                            <dt className="text-xs text-[var(--muted)]">
+                              Sold qty
+                            </dt>
+                            <dd className="mt-1 text-lg font-semibold tabular-nums">
+                              {formatQuantity(selectedSessionItem.soldQty)}{' '}
+                              {selectedSessionItem.uom}
+                            </dd>
+                          </div>
+                          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)]/50 p-3">
+                            <dt className="text-xs text-[var(--muted)]">
+                              Opening qty
+                            </dt>
+                            <dd className="mt-1 text-lg font-semibold tabular-nums">
+                              {formatQuantity(selectedSessionItem.openingQty)}{' '}
+                              {selectedSessionItem.uom}
+                            </dd>
+                          </div>
+                        </dl>
+                        {selectedSessionItem.soldQty >
+                          selectedSessionItem.openingQty && (
+                          <p className="text-xs text-[var(--status-pending)]">
+                            Sold quantity is greater than the opening quantity
+                            by{' '}
+                            {formatQuantity(
+                              selectedSessionItem.soldQty -
+                                selectedSessionItem.openingQty,
+                            )}{' '}
+                            {selectedSessionItem.uom}.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {selectedSessionItem && selectedSessionItem.openingQty > 0 ? (
+                    <div className="mx-auto w-full max-w-72">
+                      <div
+                        className="relative h-64 w-full"
+                        role="img"
+                        aria-label={`${formatQuantity(selectedSessionItem.soldQty)} ${selectedSessionItem.uom} sold out of ${formatQuantity(selectedSessionItem.openingQty)} ${selectedSessionItem.uom} opening quantity for ${selectedSessionItem.name}`}
+                      >
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: 'var(--card)',
+                                border: '1px solid var(--border)',
+                                borderRadius: 10,
+                                color: 'var(--foreground)',
+                              }}
+                              formatter={(value, name) => [
+                                `${formatQuantity(Number(value))} ${selectedSessionItem.uom}`,
+                                String(name),
+                              ]}
+                            />
+                            <Pie
+                              data={sessionStockDonutData}
+                              dataKey="value"
+                              nameKey="name"
+                              innerRadius="70%"
+                              outerRadius="92%"
+                              paddingAngle={2}
+                              stroke="var(--card)"
+                              strokeWidth={3}
+                              isAnimationActive={false}
+                            >
+                              {sessionStockDonutData.map((segment) => (
+                                <Cell key={segment.name} fill={segment.color} />
+                              ))}
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                          <span className="text-xs text-[var(--muted)]">
+                            Opening qty
+                          </span>
+                          <span className="mt-1 text-2xl font-semibold tabular-nums">
+                            {formatQuantity(selectedSessionItem.openingQty)}
+                          </span>
+                          <span className="text-xs text-[var(--muted)]">
+                            {selectedSessionItem.uom}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="size-2.5 rounded-full bg-[var(--accent)]" />
+                          Sold
+                        </span>
+                        <span className="inline-flex items-center gap-2 text-[var(--muted)]">
+                          <span className="size-2.5 rounded-full bg-[var(--border-strong)]" />
+                          Remaining
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border)] p-5 text-center">
+                      <p className="text-sm font-medium">
+                        No opening quantity was recorded for this item.
+                      </p>
+                      <p className="text-xs text-[var(--muted)]">
+                        Sold quantity:{' '}
+                        {formatQuantity(selectedSessionItem?.soldQty ?? 0)}{' '}
+                        {selectedSessionItem?.uom}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Recent transactions */}
       <SectionCard
@@ -716,7 +1494,29 @@ export default function Home() {
         description="Latest activity within the selected date range."
       >
         <div className="space-y-3">
-          {recentTransactions.length === 0 ? (
+          {transactionsQuery.isLoading ? (
+            <div
+              className="rounded-[12px] border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]"
+              role="status"
+            >
+              Loading recent transactions…
+            </div>
+          ) : transactionsQuery.isError ? (
+            <div className="flex flex-col items-center gap-3 rounded-[12px] border border-dashed border-[var(--border)] p-6 text-center">
+              <p className="text-sm text-[var(--status-danger)]" role="alert">
+                Recent transactions could not be loaded.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void transactionsQuery.refetch()}
+                className="min-h-10"
+              >
+                <RefreshCw size={14} aria-hidden="true" />
+                Retry
+              </Button>
+            </div>
+          ) : recentTransactions.length === 0 ? (
             <div className="rounded-[12px] border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">
               No transactions in this period.
             </div>
@@ -725,11 +1525,11 @@ export default function Home() {
               <Link
                 key={tx.id}
                 to={`/transactions/${tx.id}`}
-                className="flex items-center justify-between rounded-[12px] border border-[var(--border)] p-3 transition hover:border-[var(--accent)]/40 hover:bg-[var(--surface-muted)]/50"
+                className="flex min-h-14 items-center justify-between gap-3 rounded-[12px] border border-[var(--border)] p-3 transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--surface-muted)]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium">{tx.invoice}</p>
+                    <p className="truncate font-medium">{tx.invoice}</p>
 
                     <span
                       className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -742,11 +1542,15 @@ export default function Home() {
                     </span>
                   </div>
 
-                  <p className="text-sm text-[var(--muted)]">{tx.customer}</p>
+                  <p className="truncate text-sm text-[var(--muted)]">
+                    {tx.customer}
+                  </p>
                 </div>
 
-                <div className="text-right">
-                  <p className="font-semibold">{formatRp(tx.total)}</p>
+                <div className="shrink-0 text-right">
+                  <p className="whitespace-nowrap font-semibold tabular-nums">
+                    {formatRp(tx.total)}
+                  </p>
 
                   <p className="text-sm text-[var(--muted)]">{tx.date}</p>
                 </div>
@@ -765,19 +1569,35 @@ export default function Home() {
       {/* Performance insights */}
       <SectionCard
         title="Performance insights"
-        description="Highlights from filtered sales data."
+        description={
+          transactionsQuery.isError
+            ? 'Sales insights are unavailable.'
+            : 'Highlights from filtered sales data.'
+        }
       >
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-[12px] bg-[var(--canvas-soft)] p-4">
             <p className="text-sm text-[var(--muted)]">Peak hour</p>
 
-            <p className="mt-2 text-xl font-semibold">{metrics.peakHour}</p>
+            <p className="mt-2 text-xl font-semibold">
+              {transactionsQuery.isLoading
+                ? 'Loading…'
+                : transactionsQuery.isError
+                  ? 'Unavailable'
+                  : metrics.peakHour}
+            </p>
           </div>
 
           <div className="rounded-[12px] border border-[var(--border)] p-4">
             <p className="text-sm text-[var(--muted)]">Best seller</p>
 
-            <p className="mt-2 text-xl font-semibold">{metrics.bestSeller}</p>
+            <p className="mt-2 text-xl font-semibold">
+              {transactionsQuery.isLoading
+                ? 'Loading…'
+                : transactionsQuery.isError
+                  ? 'Unavailable'
+                  : metrics.bestSeller}
+            </p>
           </div>
 
           <div className="rounded-[12px] border border-[var(--border)] p-4">

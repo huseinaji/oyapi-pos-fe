@@ -11,7 +11,7 @@ export type Product = {
 };
 
 export type StoreSettings = {
-  storeName: string;
+  name: string;
   ownerName: string;
   address: string;
   phone: string;

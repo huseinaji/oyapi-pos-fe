@@ -1,9 +1,9 @@
 import axios from 'axios';
 import type { ApiErrorBody } from '../../types/api';
 
-export const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.DEV ? '' : 'http://192.168.1.9:3001');
+// Development requests use the Rsbuild proxy; production may use a public API URL.
+export const API_BASE: string =
+  import.meta.env.DEV ? '' : import.meta.env.API_BASE_URL || '';
 
 export class ApiError extends Error {
   constructor(

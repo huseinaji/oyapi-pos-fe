@@ -1,5 +1,5 @@
 import { Api } from '../api';
-import { fetchAllPages, type PaginatedResponse } from '#lib/api/pagination';
+import { fetchAllPages, type PaginatedResponse } from '@/lib/api/pagination';
 import type {
   CashierOperator,
   CashierSession,
@@ -10,20 +10,37 @@ import type {
 type PosSessionItemResponse = {
   itemId: string;
   openingQty: number;
+  soldQty?: number | null;
   closingQty?: number | null;
   item?: { id?: string; name?: string; uom?: string } | null;
 };
 
-type PosSessionResponse = {
+export type PosSessionResponse = {
   id: string;
   storeId?: string;
   store?: { id?: string; storeId?: string } | null;
   status: string;
   createdAt: string;
-  createdBy: unknown;
+  createdBy: string;
   closedAt?: string | null;
-  closedBy?: unknown;
+  closedBy?: string;
   items?: PosSessionItemResponse[];
+  creator: {
+    id: string,
+    username: string,
+    email: string,
+    role: string,
+    status: string,
+    lastLogin: string,
+  }
+  closer?: {
+    id: string,
+    username: string,
+    email: string,
+    role: string,
+    status: string,
+    lastLogin: string,
+  } | null
 };
 
 type PosSessionFilters = {
@@ -37,7 +54,9 @@ function sessionsPath(storeId: string): string {
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function mapOperator(value: unknown): CashierOperator {
@@ -58,22 +77,18 @@ function mapSnapshot(
     itemName: item.item?.name ?? String(item.itemId),
     uom: item.item?.uom ?? '',
     quantity,
+    ...(typeof item.soldQty === 'number' ? { soldQuantity: item.soldQty } : {}),
   };
 }
 
 function mapSession(value: PosSessionResponse): CashierSession {
   const items = value.items ?? [];
   const openingStock = items.map((item) => mapSnapshot(item, item.openingQty));
-  const hasClosingStock = items.some(
-    (item) => typeof item.closingQty === 'number',
-  );
-  const closingStock = hasClosingStock
+  const isClosed = value.status.toLowerCase() === 'closed';
+  const closingStock = isClosed
     ? items.flatMap((item) =>
         typeof item.closingQty === 'number'
-          ? [{
-              ...mapSnapshot(item, item.closingQty),
-              soldQuantity: Math.max(0, item.openingQty - item.closingQty),
-            }]
+          ? [mapSnapshot(item, item.closingQty)]
           : [],
       )
     : undefined;
@@ -81,12 +96,12 @@ function mapSession(value: PosSessionResponse): CashierSession {
   return {
     id: value.id,
     storeId: value.storeId ?? value.store?.storeId ?? value.store?.id ?? '',
-    status: value.status.toLowerCase() === 'closed' ? 'CLOSED' : 'OPEN',
+    status: isClosed ? 'CLOSED' : 'OPEN',
     openedAt: value.createdAt,
-    openedBy: mapOperator(value.createdBy),
+    openedBy: mapOperator(value.creator ?? value.createdBy),
     openingStock,
     ...(value.closedAt ? { closedAt: value.closedAt } : {}),
-    ...(value.closedBy ? { closedBy: mapOperator(value.closedBy) } : {}),
+    ...(value.closer ? { closer: mapOperator(value.closer) } : {}),
     ...(closingStock ? { closingStock } : {}),
   };
 }
@@ -98,7 +113,6 @@ export const cashierSessionsApi = {
         params: { ...filters, page, limit },
       }).then((result) => result.data),
     );
-
     return response.rows.map(mapSession);
   },
   open: (storeId: string, openingStock: CashierStockSnapshot[]) => {

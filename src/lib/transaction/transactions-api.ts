@@ -4,7 +4,7 @@ import type {
   SalesInvoiceFilters,
   SalesInvoiceListResponse,
   SalesInvoicePageParams,
-} from '#lib/transaction/transaction-types';
+} from '@/lib/transaction/transaction-types';
 import { Api } from '../api';
 import { fetchAllPages } from '../api/pagination';
 

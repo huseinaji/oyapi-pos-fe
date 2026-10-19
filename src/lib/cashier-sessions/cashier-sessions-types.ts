@@ -22,13 +22,13 @@ export type CashierSession = {
   participants?: CashierOperator[];
   openingStock: CashierStockSnapshot[];
   closedAt?: string;
-  closedBy?: CashierOperator;
+  closer?: CashierOperator;
   closingStock?: CashierStockSnapshot[];
 };
 
 export type OpenCashierSessionDto = {
   items: Array<{
     itemId: string;
-    openingStock: number;
+    openingQty: number;
   }>;
 };

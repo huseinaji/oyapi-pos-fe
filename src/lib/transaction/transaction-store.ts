@@ -3,11 +3,11 @@ import type {
   CreatePOSTransactionDto,
   SalesInvoice,
   SalesInvoiceFilters,
-} from '#lib/transaction/transaction-types';
+} from '@/lib/transaction/transaction-types';
 import type { Transaction } from './transaction-types';
-import { productQueryKeys } from '#lib/product/product-store';
+import { productQueryKeys } from '@/lib/product/product-store';
 import { transactionsApi } from './transactions-api';
-import { useMeQuery } from '#lib/auth/auth-store';
+import { useMeQuery } from '@/lib/auth/auth-store';
 
 export const transactionQueryKeys = {
   all: ['transactions'] as const,

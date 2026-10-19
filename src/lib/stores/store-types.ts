@@ -1,19 +1,33 @@
-export type StoreRole =
-  | 'ADMIN'
-  | 'CASHIER'
+export type StoreRole = 'ADMIN' | 'CASHIER';
+
+export function normalizeStoreRole(value: unknown): StoreRole | null {
+  if (typeof value !== 'string') return null;
+  const role = value.toUpperCase();
+  return role === 'ADMIN' || role === 'CASHIER' ? role : null;
+}
+
+export type StoreMember = {
+  id: string;
+  username: string;
+  email: string;
+  role: StoreRole | 'USER';
+  status?: 'ACTIVE' | 'INACTIVE';
+  createdAt?: string;
+  updatedAt?: string;
+};
 
 export type StorePayload = {
   storeId: string;
   role: StoreRole;
-}
+};
 
 export type SelectStoreResponse = {
   success: boolean;
   data: {
-    store: any,
-    role: StoreRole
-  }
-}
+    store: any;
+    role: StoreRole;
+  };
+};
 
 /** Shape of a single store returned by GET /api/v1/store/my-store */
 export type ApiStore = {
@@ -25,6 +39,14 @@ export type ApiStore = {
   createdAt: string;
   updatedAt: string;
   storeMember: ApiStoreMember[];
+  creator: {
+    email: string,
+    id: string,
+    lastLogin: string,
+    role: string,
+    status: string,
+    username: string
+  }
 };
 
 export type ApiStoreMember = {
@@ -33,7 +55,7 @@ export type ApiStoreMember = {
   role: StoreRole;
   storeId: string;
   userId: string;
-}
+};
 
 /** GET /api/v1/store/my-store — paginated response */
 export type MyStoreResponse = {

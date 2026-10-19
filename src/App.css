@@ -25,7 +25,7 @@
 }
 
 .dark {
-  --background: #141a18;
+  --background: #0f0f0f;
   --foreground: #f7f5f0;
   --card: #1d2925;
   --canvas-soft: #202b26;
@@ -48,13 +48,18 @@
   --popover: #141a18;
 }
 
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --color-popover: var(--popover);
+  --color-sidebar: var(--card);
+  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar-accent: var(--surface-muted);
+  --color-sidebar-accent-foreground: var(--foreground);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-ring: var(--accent);
 }
 
 * {

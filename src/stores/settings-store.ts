@@ -1,7 +1,7 @@
 import type { StoreSettings } from '../types/inde';
 import { createStore } from '../lib/store-utils';
 export const defaultSettings: StoreSettings = {
-  storeName: 'POS Studio',
+  name: 'POS Studio',
   ownerName: '',
   address: '',
   phone: '',

@@ -54,6 +54,17 @@ export type ItemListResponse = {
   rows: ApiItem[];
 };
 
+export type SellableItemResponse = {
+  id: string;
+  name: string;
+  imageUrl?: string | null;
+  type: string;
+  description?: string | null;
+  uom: string;
+  sellingPrice: number;
+  availableQty: number;
+};
+
 export type StoreItemCategory = {
   id: string;
   name: string;
@@ -79,14 +90,31 @@ export type CreateItemDto = {
   basePrice: number;
   sellingPrice: number;
   isMaintainStock?: boolean;
-  initialStock: number;
+  initialStock?: number;
+  itemComponents?: ItemBundleComponentDto[];
+};
+
+export type ItemBundleComponentDto = {
+  componentItemId: string;
+  qty: number;
 };
 
 /** PATCH /api/v1/store/{storeId}/items/{itemId} — request body */
-export type UpdateItemDto = Partial<CreateItemDto>;
+export type UpdateItemDto = Partial<
+  Pick<
+    CreateItemDto,
+    'name' | 'categoryId' | 'description' | 'uom' | 'basePrice' | 'sellingPrice' | 'imageUrl'
+  >
+> & {
+  status?: 'active' | 'inactive';
+};
 
 /** Enum values accepted by the backend for item type */
-export const ITEM_TYPE_OPTIONS = ['raw_material', 'finished_good', 'item_bundle'] as const;
+export const ITEM_TYPE_OPTIONS = [
+  'raw_material',
+  'finished_good',
+  'item_bundle',
+] as const;
 export type ItemType = (typeof ITEM_TYPE_OPTIONS)[number];
 
 /** Display labels for item types */

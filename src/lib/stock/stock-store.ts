@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { stockApi } from './stock-api';
-import { useMeQuery } from '#lib/auth/auth-store';
+import { useMeQuery } from '@/lib/auth/auth-store';
 
 export const stockQueryKeys = {
   all: ['stock'] as const,

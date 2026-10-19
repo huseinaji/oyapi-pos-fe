@@ -1,10 +1,10 @@
 {
-  "name": "my-pos-rsbuild",
+  "name": "oyapi-pos-fe",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "rsbuild build --host 0.0.0.0",
+    "build": "rsbuild build",
     "dev": "rsbuild",
     "format": "prettier --write .",
     "preview": "rsbuild preview"
@@ -38,10 +38,5 @@
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3"
-  },
-  "imports": {
-    "#components/*": "./src/components/*.tsx",
-    "#lib/*": "./src/lib/*.ts",
-    "#hooks/*": "./src/hooks/*.ts"
   }
 }

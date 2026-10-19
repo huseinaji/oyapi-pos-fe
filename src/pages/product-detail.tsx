@@ -1,24 +1,54 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Boxes, CalendarDays, Package, PencilLine, Save, Tag } from 'lucide-react';
+import {
+  ArrowLeft,
+  Boxes,
+  CalendarDays,
+  Package,
+  Save,
+  Tag,
+} from 'lucide-react';
 import { useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { AppButton } from '../components/ui/app-button';
-import { AppSelect } from '../components/ui/app-select';
-import { Checkbox } from '../components/ui/checkbox';
-import { FormField } from '../components/layout/form-field';
-import { PageHeader } from '../components/ui/page-header';
-import { SectionCard } from '../components/ui/section-card';
-import { useProductQuery, useUpdateProductMutation } from '#lib/product/product-store';
-import { useUIStore } from '../stores/ui-store';
-import type { ApiItem, ItemType, ItemUom, UpdateItemDto } from '#lib/product/product-types';
+import { AppButton } from '@/components/ui/app-button';
+import { AppSelect } from '@/components/ui/app-select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { PageHeader } from '@/components/ui/page-header';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
+import {
+  useProductQuery,
+  useUpdateProductMutation,
+} from '@/lib/product/product-store';
+import { useUIStore } from '@/stores/ui-store';
+import type {
+  ApiItem,
+  ItemType,
+  ItemUom,
+  UpdateItemDto,
+} from '@/lib/product/product-types';
 import {
   ITEM_TYPE_LABELS,
   ITEM_TYPE_OPTIONS,
   ITEM_UOM_LABELS,
   ITEM_UOM_OPTIONS,
-} from '#lib/product/product-types';
-import { formatRp } from '../lib/transaction-utils';
-import { useItemCategoriesQuery } from '#lib/product/item-categories-store';
+} from '@/lib/product/product-types';
+import { formatRp } from '@/lib/transaction-utils';
+import { useItemCategoriesQuery } from '@/lib/product/item-categories-store';
+import { SectionCard } from '@/components/ui/section-card';
+
+const FIELD_LABEL_CLASS =
+  'h-5 text-sm font-medium leading-5 text-[var(--foreground)]';
 
 function formatItemType(type: string) {
   return ITEM_TYPE_LABELS[type as ItemType] ?? type;
@@ -59,11 +89,21 @@ function toForm(item: ApiItem): ProductForm {
   };
 }
 
-function changedFields(initial: ProductForm, current: ProductForm): UpdateItemDto {
+function changedFields(
+  initial: ProductForm,
+  current: ProductForm,
+): UpdateItemDto {
   const changes: UpdateItemDto = {};
-  (Object.keys(current) as Array<keyof ProductForm>).forEach((key) => {
-    if (initial[key] !== current[key]) changes[key] = current[key] as never;
-  });
+  if (initial.name !== current.name) changes.name = current.name;
+  if (initial.categoryId !== current.categoryId)
+    changes.categoryId = current.categoryId;
+  if (initial.uom !== current.uom) changes.uom = current.uom;
+  if (initial.description !== current.description)
+    changes.description = current.description;
+  if (initial.basePrice !== current.basePrice)
+    changes.basePrice = current.basePrice;
+  if (initial.sellingPrice !== current.sellingPrice)
+    changes.sellingPrice = current.sellingPrice;
   return changes;
 }
 
@@ -75,7 +115,6 @@ export default function ProductDetailPage() {
   const categoriesQuery = useItemCategoriesQuery();
   const categories = categoriesQuery.data?.rows ?? [];
   const theme = useUIStore((state) => state.theme);
-  const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [initialForm, setInitialForm] = useState<ProductForm | null>(null);
   const [form, setForm] = useState<ProductForm | null>(null);
@@ -93,12 +132,22 @@ export default function ProductDetailPage() {
   );
   const hasChanges = Object.keys(changes).length > 0;
 
-  const updateForm = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) => {
+  const updateForm = <K extends keyof ProductForm>(
+    key: K,
+    value: ProductForm[K],
+  ) => {
     setForm((current) => (current ? { ...current, [key]: value } : current));
   };
 
   const handleSave = async () => {
-    if (!product || !form || !hasChanges || !form.name.trim() || form.sellingPrice <= 0) return;
+    if (
+      !product ||
+      !form ||
+      !hasChanges ||
+      !form.name.trim() ||
+      form.sellingPrice <= 0
+    )
+      return;
     setIsSaving(true);
     try {
       const updated = await updateProductMutation.mutateAsync({
@@ -110,11 +159,13 @@ export default function ProductDetailPage() {
       });
       setForm(toForm(updated));
       setInitialForm(toForm(updated));
-      setIsEditing(false);
-      toast.success('Item updated', { description: `${updated.name} was saved.` });
+      toast.success('Item updated', {
+        description: `${updated.name} was saved.`,
+      });
     } catch (reason) {
       toast.error('Unable to update item', {
-        description: reason instanceof Error ? reason.message : 'Please try again.',
+        description:
+          reason instanceof Error ? reason.message : 'Please try again.',
       });
     } finally {
       setIsSaving(false);
@@ -134,7 +185,10 @@ export default function ProductDetailPage() {
     return (
       <div className="space-y-6">
         <PageHeader eyebrow="Inventory" title="Item detail" />
-        <SectionCard title="Item unavailable" description="Unable to load item details.">
+        <SectionCard
+          title="Item unavailable"
+          description="Unable to load item details."
+        >
           <AppButton variant="secondary" onClick={() => navigate('/products')}>
             <ArrowLeft size={14} />
             <span className="ml-2">Back to items</span>
@@ -145,29 +199,23 @@ export default function ProductDetailPage() {
   }
 
   const stock = product.bin?.stockValue ?? product.stock ?? 0;
-  const stockTone = stock > 0 ? 'text-[var(--status-success)]' : 'text-[var(--status-danger)]';
+  const stockTone =
+    stock > 0 ? 'text-[var(--status-success)]' : 'text-[var(--status-danger)]';
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Inventory / Item detail"
-        title={product.name}
-        description={`${categories.find((category) => category.id === product.categoryId)?.name ?? product.category ?? 'Uncategorized'} · ${formatItemType(product.type ?? '')} · ${formatUom(product.uom)}`}
+        title={form?.name ?? product.name}
+        description={`${form?.categoryId ? (categories.find((category) => category.id === form.categoryId)?.name ?? product.category ?? 'Uncategorized') : 'Uncategorized'} · ${formatItemType(product.type ?? '')} · ${formatUom(form?.uom ?? product.uom)}`}
         action={
-          <div className="flex gap-2">
-            <AppButton 
+          <div className="flex flex-wrap gap-2">
+            <AppButton
               variant={theme === 'dark' ? 'secondary-inverted' : 'inverted'}
               onClick={() => navigate('/products')}
             >
               <ArrowLeft size={14} />
               <span className="ml-2 hidden sm:inline">Items</span>
-            </AppButton>
-            <AppButton
-              variant={theme === 'dark' ? 'secondary-inverted' : 'inverted'}
-              onClick={() => setIsEditing((current) => !current)}
-            >
-              <PencilLine size={14} />
-              <span className="ml-2 hidden sm:inline">{isEditing ? 'Cancel' : 'Edit'}</span>
             </AppButton>
             <AppButton
               variant={theme === 'dark' ? 'secondary-inverted' : 'inverted'}
@@ -181,76 +229,265 @@ export default function ProductDetailPage() {
       />
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <Metric icon={Package} label="Selling price" value={formatRp(product.sellingPrice)} />
-        <Metric icon={Boxes} label="Available stock" value={`${stock} ${formatUom(product.uom)}`} valueClassName={stockTone} />
-        <Metric icon={Tag} label="Stock tracking" value={product.isMaintainStock ? 'Enabled' : 'Disabled'} />
+        <Metric
+          icon={Package}
+          label="Selling price"
+          value={formatRp(form?.sellingPrice ?? product.sellingPrice)}
+        />
+        <Metric
+          icon={Boxes}
+          label="Available stock"
+          value={`${stock} ${formatUom(form?.uom ?? product.uom)}`}
+          valueClassName={stockTone}
+        />
+        <Metric
+          icon={Tag}
+          label="Stock tracking"
+          value={product.isMaintainStock ? 'Enabled' : 'Disabled'}
+        />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_0.8fr]">
-        <SectionCard title="Item overview" description="The information currently used in your catalog and POS.">
-          {isEditing && form ? (
-            <div className="space-y-5">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <FormField label="Item name" required>
-                  <input value={form.name} onChange={(event) => updateForm('name', event.target.value)} className={inputClass()} />
-                </FormField>
-                <FormField label="Item type" required>
-                  <AppSelect value={form.type} onValueChange={(value) => updateForm('type', value)} options={ITEM_TYPE_OPTIONS.map((value) => ({ value, label: formatItemType(value) }))} />
-                </FormField>
-                <FormField label="Item category">
-                  <AppSelect value={form.categoryId} onValueChange={(value) => updateForm('categoryId', value)} options={[{ value: '', label: 'Uncategorized' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} disabled={categoriesQuery.isLoading} />
-                </FormField>
-                <FormField label="Unit of measure" required>
-                  <AppSelect value={form.uom} onValueChange={(value) => updateForm('uom', value)} options={ITEM_UOM_OPTIONS.map((value) => ({ value, label: formatUom(value) }))} />
-                </FormField>
-                <FormField label="Base price">
-                  <input type="number" min={0} value={form.basePrice} onChange={(event) => updateForm('basePrice', Number(event.target.value))} className={inputClass()} />
-                </FormField>
-                <FormField label="Selling price" required>
-                  <input type="number" min={0} value={form.sellingPrice} onChange={(event) => updateForm('sellingPrice', Number(event.target.value))} className={inputClass()} />
-                </FormField>
-              </div>
-              <FormField label="Description">
-                <textarea value={form.description} onChange={(event) => updateForm('description', event.target.value)} rows={3} className={inputClass()} />
-              </FormField>
-              <label className="flex items-center gap-3 text-sm">
-                <Checkbox checked={form.isMaintainStock} onCheckedChange={(checked) => updateForm('isMaintainStock', checked === true)} />
-                <span>Maintain stock</span>
-              </label>
-              {hasChanges && (
-                <div className="flex justify-end border-t border-[var(--border)] pt-4">
-                  <AppButton onClick={() => void handleSave()} disabled={isSaving || !form.name.trim() || form.sellingPrice <= 0}>
-                    <Save size={14} />
-                    <span className="ml-2">{isSaving ? 'Saving...' : 'Save changes'}</span>
-                  </AppButton>
-                </div>
-              )}
+      {form && (
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>General information</CardTitle>
+              <CardDescription>
+                Item identity and catalog classification.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup className="!grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="item-name" className={FIELD_LABEL_CLASS}>
+                    Item name
+                  </FieldLabel>
+                  <input
+                    id="item-name"
+                    value={form.name}
+                    disabled={isSaving}
+                    onChange={(event) => updateForm('name', event.target.value)}
+                    className={inputClass()}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel className={FIELD_LABEL_CLASS}>
+                    Item type
+                  </FieldLabel>
+                  <div className={fieldValueClass()}>
+                    {formatItemType(form.type)}
+                  </div>
+                </Field>
+                <Field>
+                  <FieldLabel className={FIELD_LABEL_CLASS}>
+                    Category
+                  </FieldLabel>
+                  <AppSelect
+                    value={form.categoryId}
+                    onValueChange={(value) => updateForm('categoryId', value)}
+                    options={[
+                      { value: '', label: 'Uncategorized' },
+                      ...categories.map((category) => ({
+                        value: category.id,
+                        label: category.name,
+                      })),
+                    ]}
+                    disabled={categoriesQuery.isLoading || isSaving}
+                    className={selectClass()}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel className={FIELD_LABEL_CLASS}>
+                    Unit of measure
+                  </FieldLabel>
+                  <AppSelect
+                    value={form.uom}
+                    onValueChange={(value) => updateForm('uom', value)}
+                    options={ITEM_UOM_OPTIONS.map((value) => ({
+                      value,
+                      label: formatUom(value),
+                    }))}
+                    disabled={isSaving}
+                    className={selectClass()}
+                  />
+                </Field>
+                <Field className="md:col-span-2">
+                  <FieldLabel
+                    htmlFor="item-description"
+                    className={FIELD_LABEL_CLASS}
+                  >
+                    Description
+                  </FieldLabel>
+                  <textarea
+                    id="item-description"
+                    value={form.description}
+                    disabled={isSaving}
+                    onChange={(event) =>
+                      updateForm('description', event.target.value)
+                    }
+                    rows={3}
+                    placeholder="No description added."
+                    className={`${inputClass()} min-h-24 resize-y py-3`}
+                  />
+                </Field>
+              </FieldGroup>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Pricing</CardTitle>
+              <CardDescription>
+                Item cost and customer-facing price.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup className="!grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2">
+                <Field>
+                  <FieldLabel
+                    htmlFor="base-price"
+                    className={FIELD_LABEL_CLASS}
+                  >
+                    Base price
+                  </FieldLabel>
+                  <input
+                    id="base-price"
+                    type="number"
+                    min={0}
+                    value={form.basePrice}
+                    disabled={isSaving}
+                    onChange={(event) =>
+                      updateForm('basePrice', Number(event.target.value))
+                    }
+                    className={inputClass()}
+                  />
+                  {form.basePrice < 0 && (
+                    <FieldDescription className="text-[var(--status-danger)]">
+                      Base price cannot be negative.
+                    </FieldDescription>
+                  )}
+                </Field>
+                <Field>
+                  <FieldLabel
+                    htmlFor="selling-price"
+                    className={FIELD_LABEL_CLASS}
+                  >
+                    Selling price
+                  </FieldLabel>
+                  <input
+                    id="selling-price"
+                    type="number"
+                    min={0}
+                    value={form.sellingPrice}
+                    disabled={isSaving}
+                    onChange={(event) =>
+                      updateForm('sellingPrice', Number(event.target.value))
+                    }
+                    className={inputClass()}
+                  />
+                  {form.sellingPrice <= 0 && (
+                    <FieldDescription className="text-[var(--status-danger)]">
+                      Selling price must be greater than zero.
+                    </FieldDescription>
+                  )}
+                </Field>
+              </FieldGroup>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Inventory</CardTitle>
+              <CardDescription>
+                Current stock and stock tracking policy.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup className="!grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2">
+                <Field>
+                  <FieldLabel className={FIELD_LABEL_CLASS}>
+                    Available stock
+                  </FieldLabel>
+                  <div className={`${fieldValueClass()} ${stockTone}`}>
+                    {stock} {formatUom(form.uom)}
+                  </div>
+                </Field>
+                <Field>
+                  <FieldLabel className={FIELD_LABEL_CLASS}>
+                    Stock tracking
+                  </FieldLabel>
+                  <div className={`${fieldValueClass()} gap-3`}>
+                    <Checkbox checked={product.isMaintainStock} disabled />
+                    <span className="text-sm font-medium">
+                      {product.isMaintainStock ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                </Field>
+              </FieldGroup>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Record history</CardTitle>
+              <CardDescription>
+                Catalog timestamps for this item.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FieldGroup className="!grid grid-cols-1 gap-x-6 gap-y-5 md:grid-cols-2">
+                <Field>
+                  <FieldLabel className={FIELD_LABEL_CLASS}>Created</FieldLabel>
+                  <div className={fieldValueClass()}>
+                    <CalendarDays
+                      size={16}
+                      className="shrink-0 text-[var(--muted)]"
+                    />
+                    <span>{formatDate(product.createdAt)}</span>
+                  </div>
+                </Field>
+                <Field>
+                  <FieldLabel className={FIELD_LABEL_CLASS}>
+                    Last updated
+                  </FieldLabel>
+                  <div className={fieldValueClass()}>
+                    <CalendarDays
+                      size={16}
+                      className="shrink-0 text-[var(--muted)]"
+                    />
+                    <span>{formatDate(product.updatedAt)}</span>
+                  </div>
+                </Field>
+              </FieldGroup>
+            </CardContent>
+          </Card>
+
+          {hasChanges && (
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <span
+                className="text-sm font-medium text-[var(--status-pending)]"
+                aria-live="polite"
+              >
+                Unsaved changes
+              </span>
+              <AppButton
+                onClick={() => void handleSave()}
+                disabled={
+                  isSaving ||
+                  !form.name.trim() ||
+                  form.sellingPrice <= 0 ||
+                  form.basePrice < 0
+                }
+              >
+                <Save size={14} />
+                <span className="ml-2">
+                  {isSaving ? 'Saving...' : 'Save changes'}
+                </span>
+              </AppButton>
             </div>
-          ) : (
-            <>
-              <div className="grid gap-5 sm:grid-cols-2">
-                <Detail label="Item name" value={product.name} />
-                <Detail label="Item type" value={formatItemType(product.type ?? '')} />
-                <Detail label="Item category" value={categories.find((category) => category.id === product.categoryId)?.name ?? product.category ?? 'Uncategorized'} />
-                <Detail label="Unit of measure" value={formatUom(product.uom)} />
-                <Detail label="Base price" value={formatRp(product.basePrice)} />
-                <Detail label="Selling price" value={formatRp(product.sellingPrice)} />
-                <Detail label="Stock policy" value={product.isMaintainStock ? 'Maintain stock' : 'No stock tracking'} />
-              </div>
-              <div className="mt-5 border-t border-[var(--border)] pt-5">
-                <Detail label="Description" value={product.description || 'No description added.'} />
-              </div>
-            </>
           )}
-        </SectionCard>
-
-        <SectionCard title="Record history" description="Catalog timestamps for this product.">
-          <div className="space-y-5">
-            <Detail icon={CalendarDays} label="Created" value={formatDate(product.createdAt)} />
-            <Detail icon={CalendarDays} label="Last updated" value={formatDate(product.updatedAt)} />
-          </div>
-        </SectionCard>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -275,26 +512,14 @@ function Metric({
   );
 }
 
-function Detail({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon?: typeof CalendarDays;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex gap-3">
-      {Icon && <Icon size={16} className="mt-0.5 shrink-0 text-[var(--muted)]" />}
-      <div className="min-w-0">
-        <p className="text-xs text-[var(--muted)]">{label}</p>
-        <p className="mt-1 break-words text-sm font-medium">{value}</p>
-      </div>
-    </div>
-  );
+function inputClass() {
+  return 'h-11 w-full rounded-[12px] border border-[var(--border)] bg-[var(--card)] px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 disabled:cursor-wait disabled:opacity-60';
 }
 
-function inputClass() {
-  return 'w-full rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3 text-sm outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15';
+function fieldValueClass() {
+  return 'flex h-11 w-full items-center gap-2 rounded-[12px] border border-[var(--border)] bg-[var(--canvas-soft)] px-3.5 text-sm text-[var(--muted)]';
+}
+
+function selectClass() {
+  return '[&>button]:h-11 [&>button]:rounded-[12px] [&>button]:border [&>button]:border-[var(--border)] [&>button]:bg-[var(--card)] [&>button]:px-3.5 [&>button]:py-0 disabled:[&>button]:cursor-not-allowed disabled:[&>button]:border-[var(--border)] disabled:[&>button]:bg-[var(--canvas-soft)] disabled:[&>button]:text-[var(--muted)]';
 }

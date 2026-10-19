@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Store,
   User,
@@ -23,9 +23,10 @@ import { PageHeader } from '../components/ui/page-header';
 import { AppSelect } from '../components/ui/app-select';
 import type { StoreSettings } from '../types/inde';
 import { defaultSettings } from '../stores/settings-store';
+import { useGetCurrentStoreQuery } from '@/lib/stores/store-store';
 
 const settingsSchema = z.object({
-  storeName: z.string().min(1, 'Store name is required'),
+  name: z.string().min(1, 'Store name is required'),
   ownerName: z.string(),
   address: z.string(),
   phone: z.string(),
@@ -48,6 +49,7 @@ const settingsSchema = z.object({
 type SettingsForm = z.infer<typeof settingsSchema>;
 
 export default function SettingsPage() {
+  const { data: storeData, isSuccess: isStoreLoaded } = useGetCurrentStoreQuery();
   const [settings, setSettings] = useState<StoreSettings>(defaultSettings);
   const [logoPreview, setLogoPreview] = useState(settings.logoUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,6 +59,7 @@ export default function SettingsPage() {
     control,
     handleSubmit,
     reset,
+    getValues,
     setValue,
     watch,
     formState: { errors, isDirty },
@@ -64,6 +67,23 @@ export default function SettingsPage() {
     resolver: zodResolver(settingsSchema),
     defaultValues: settings,
   });
+
+  useEffect(() => {
+    if (!isStoreLoaded || !storeData || isDirty) return;
+
+    const nextSettings: StoreSettings = {
+      ...getValues(),
+      name: storeData.name ?? '',
+      ownerName: storeData.creator?.username ?? '',
+      address: storeData.address ?? '',
+      phone: storeData.phone ?? '',
+      logoUrl: storeData.imageUrl ?? '',
+    };
+
+    setSettings(nextSettings);
+    setLogoPreview(nextSettings.logoUrl);
+    reset(nextSettings);
+  }, [getValues, isDirty, isStoreLoaded, reset, storeData]);
 
   // Live-preview values from the form
   const watched = watch();
@@ -73,7 +93,7 @@ export default function SettingsPage() {
     setSettings(payload);
     reset(payload);
     toast.success('Settings saved', {
-      description: `${data.storeName} updated successfully.`,
+      description: `${data.name} updated successfully.`,
     });
   };
 
@@ -138,13 +158,13 @@ export default function SettingsPage() {
             <Field
               label="Store name"
               required
-              error={errors.storeName?.message}
+              error={errors.name?.message}
               icon={Store}
             >
               <input
-                {...register('storeName')}
+                {...register('name')}
                 placeholder="e.g. Kopi Senja"
-                className={inputClass(!!errors.storeName)}
+                className={inputClass(!!errors.name)}
               />
             </Field>
 
@@ -337,7 +357,7 @@ export default function SettingsPage() {
                   </div>
                 )}
                 <p className="font-semibold">
-                  {watched.storeName || 'Store name'}
+                  {watched.name || 'Store name'}
                 </p>
                 {watched.address && (
                   <p className="mt-0.5 text-[11px] text-[var(--muted)]">

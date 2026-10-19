@@ -1,16 +1,19 @@
-import { productsApi } from '#lib/product/products-api';
+import { productsApi } from '@/lib/product/products-api';
 import type {
   ApiItem,
   CreateItemDto,
   ItemFilters,
+  SellableItemResponse,
   UpdateItemDto,
-} from '#lib/product/product-types';
+} from '@/lib/product/product-types';
 import type { Product } from '@/types/inde';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMeQuery } from '#lib/auth/auth-store';
+import { useMeQuery } from '@/lib/auth/auth-store';
 
 export const productQueryKeys = {
   all: ['products'] as const,
+  sellableItems: (storeId?: string) =>
+    [...productQueryKeys.all, 'sellable-items', storeId] as const,
   list: (storeId?: string, filters: ItemFilters = {}) =>
     [...productQueryKeys.all, 'list', storeId, filters] as const,
   detail: (storeId: string | undefined, id: string) =>
@@ -47,6 +50,9 @@ export function useCreateProductMutation() {
     onSuccess: (item) => {
       queryClient.setQueryData(productQueryKeys.detail(storeId, item.id), item);
       void queryClient.invalidateQueries({ queryKey: productQueryKeys.list(storeId) });
+      void queryClient.invalidateQueries({
+        queryKey: productQueryKeys.sellableItems(storeId),
+      });
     },
   });
 }
@@ -63,6 +69,9 @@ export function useUpdateProductMutation() {
     onSuccess: (item) => {
       queryClient.setQueryData(productQueryKeys.detail(storeId, item.id), item);
       void queryClient.invalidateQueries({ queryKey: productQueryKeys.list(storeId) });
+      void queryClient.invalidateQueries({
+        queryKey: productQueryKeys.sellableItems(storeId),
+      });
     },
   });
 }
@@ -79,6 +88,9 @@ export function useDeleteProductMutation() {
     onSuccess: (_, id) => {
       queryClient.removeQueries({ queryKey: productQueryKeys.detail(storeId, id), exact: true });
       void queryClient.invalidateQueries({ queryKey: productQueryKeys.list(storeId) });
+      void queryClient.invalidateQueries({
+        queryKey: productQueryKeys.sellableItems(storeId),
+      });
     },
   });
 }
@@ -101,11 +113,28 @@ export const mapProduct = (item: ApiItem): Product => ({
   uom: item.uom,
 });
 
-export function usePosProductsQuery(filters: ItemFilters = {}) {
-  const query = useProductsQuery(filters);
+const mapSellableProduct = (item: SellableItemResponse): Product => ({
+  id: item.id,
+  name: item.name,
+  imageUrl: item.imageUrl,
+  category: item.type,
+  price: item.sellingPrice,
+  stock: item.availableQty,
+  description: item.description ?? '',
+  uom: item.uom,
+});
+
+export function usePosProductsQuery() {
+  const storeId = useMeQuery().data?.store?.storeId;
+  const query = useQuery({
+    queryKey: productQueryKeys.sellableItems(storeId),
+    queryFn: () => productsApi.listSellableItems(storeId!),
+    enabled: Boolean(storeId),
+    refetchOnWindowFocus: true,
+  });
+
   return {
     ...query,
-    data: query.data?.rows.map(mapProduct) ?? [],
+    data: query.data?.map(mapSellableProduct) ?? [],
   };
 }
-

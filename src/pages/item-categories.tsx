@@ -1,19 +1,25 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Plus, RefreshCw, Tag, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { AppButton } from '../components/ui/app-button';
-import { AppDialog } from '../components/ui/app-dialog';
-import { ConfirmDeleteDialog } from '../components/ui/confirm-delete-dialog';
-import { PageHeader } from '../components/ui/page-header';
-import { SectionCard } from '../components/ui/section-card';
+import { AppButton } from '@/components/ui/app-button';
+import { AppDialog } from '@/components/ui/app-dialog';
+import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
+import { PageHeader } from '@/components/ui/page-header';
+import { SectionCard } from '@/components/ui/section-card';
 import {
   useCreateItemCategoryMutation,
   useDeleteItemCategoryMutation,
   useItemCategoriesQuery,
-} from '#lib/product/item-categories-store';
-import type { StoreItemCategory } from '#lib/product/product-types';
-import { DataTable } from '#components/ui/data-table';
-import { getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef } from '@tanstack/react-table';
+} from '@/lib/product/item-categories-store';
+import type { StoreItemCategory } from '@/lib/product/product-types';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 export default function ItemCategoriesPage() {
   const categoriesQuery = useItemCategoriesQuery();
@@ -23,39 +29,6 @@ export default function ItemCategoriesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [categoryName, setCategoryName] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<StoreItemCategory | null>(null);
-  const columns = useMemo<ColumnDef<StoreItemCategory>[]>(() => [
-    {
-      accessorKey: 'name',
-      header: 'Category',
-      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
-    },
-    {
-      id: 'actions',
-      enableSorting: false,
-      header: () => <span className="block text-right">Actions</span>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          <button
-            type="button"
-            title={`Delete ${row.original.name}`}
-            aria-label={`Delete ${row.original.name}`}
-            disabled={deleteMutation.isPending}
-            onClick={() => setDeleteTarget(row.original)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[var(--status-danger)]/10 hover:text-[var(--status-danger)] disabled:opacity-50"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
-      ),
-    },
-  ], [deleteMutation.isPending]);
-  const table = useReactTable({
-    data: categories,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
-
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = categoryName.trim();
@@ -121,12 +94,41 @@ export default function ItemCategoriesPage() {
             </AppButton>
           </div>
         ) : (
-          <DataTable
-            table={table}
-            emptyContent="No categories found."
-            containerClassName="overflow-hidden rounded-[10px] border border-[var(--border)]"
-            tableClassName="min-w-[420px]"
-          />
+          <div className="overflow-hidden rounded-[10px] border border-[var(--border)]">
+            <Table className="min-w-[420px]">
+              <TableHeader className="bg-[var(--surface-muted)]">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Category</TableHead>
+                  <TableHead>
+                    <span className="block text-right">Actions</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {categories.map((category) => (
+                  <TableRow key={category.id}>
+                    <TableCell>
+                      <span className="font-medium">{category.name}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-right">
+                        <button
+                          type="button"
+                          title={`Delete ${category.name}`}
+                          aria-label={`Delete ${category.name}`}
+                          disabled={deleteMutation.isPending}
+                          onClick={() => setDeleteTarget(category)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[var(--status-danger)]/10 hover:text-[var(--status-danger)] disabled:opacity-50"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </SectionCard>
 

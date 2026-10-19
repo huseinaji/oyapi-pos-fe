@@ -1,7 +1,7 @@
 
 import type { ApiUser, UpdateUserDto } from '@/types/api';
 import { usersApi } from './users-api';
-import { createStore } from '#lib/store-utils';
+import { createStore } from '@/lib/store-utils';
 
 type UserState = {
   users: ApiUser[];

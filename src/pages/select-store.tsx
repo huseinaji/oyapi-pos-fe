@@ -5,7 +5,7 @@ import { useAuthStore, useLogoutMutation } from '../lib/auth/auth-store';
 import {
   useListMyStoreQuery,
   useSelectStoreMutation,
-} from '#lib/stores/store-store';
+} from '@/lib/stores/store-store';
 
 export default function SelectStorePage() {
   const navigate = useNavigate();

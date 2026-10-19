@@ -19,13 +19,17 @@ export function MetricCard({
         : 'text-[var(--muted)]';
 
   return (
-    <div className="rounded-[12px] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_0_0.5px_rgba(0,0,0,0.14),0_1px_1px_rgba(0,0,0,0.24)]">
+    <div className="min-w-0 rounded-[12px] border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_0_0.5px_rgba(0,0,0,0.14),0_1px_1px_rgba(0,0,0,0.24)] sm:p-5">
       <div className="mb-3 h-1 w-10 rounded-full bg-[var(--accent-strong)]" />
-      <p className="text-sm text-[var(--muted)]">{title}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-[-0.01em] text-[var(--heading)]">
+      <p className="text-xs leading-5 text-[var(--muted)] sm:text-sm">
+        {title}
+      </p>
+      <p className="mt-2 whitespace-nowrap text-xl font-semibold tabular-nums tracking-[-0.01em] text-[var(--heading)] sm:text-2xl">
         {value}
       </p>
-      <p className={`mt-2 text-sm ${trendColor}`}>{hint}</p>
+      <p className={`mt-2 text-xs leading-5 sm:text-sm ${trendColor}`}>
+        {hint}
+      </p>
     </div>
   );
 }

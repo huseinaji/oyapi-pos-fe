@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApiUser, ApiUserRole, ApiUserStatus, LoginDto } from '../../types/api';
 import { createStore } from '../store-utils';
-import { AuthApi } from '#lib/auth/login-api';
-import type { StorePayload } from '#lib/stores/store-types';
+import { AuthApi } from '@/lib/auth/login-api';
+import type { StorePayload } from '@/lib/stores/store-types';
 
 export type AuthUser = {
   id: string;

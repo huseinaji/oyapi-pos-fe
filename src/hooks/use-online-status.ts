@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { API_BASE } from '../lib/api';
 
 /**
  * Returns true when the browser has network connectivity.
@@ -26,7 +25,7 @@ export function useOnlineStatus(): boolean {
 
       try {
         // Any HTTP response means the backend is reachable, including 401.
-        await fetch(`${API_BASE}/api/v1/auth/me`, {
+        await fetch('/api/v1/auth/me', {
           credentials: 'include',
           cache: 'no-store',
           signal: controller.signal,

@@ -1,10 +1,6 @@
 import axios from 'axios';
 import type { ApiErrorBody } from '../../types/api';
 
-// Development requests use the Rsbuild proxy; production may use a public API URL.
-export const API_BASE: string =
-  import.meta.env.DEV ? '' : import.meta.env.API_BASE_URL || '';
-
 export class ApiError extends Error {
   constructor(
     public readonly statusCode: number,
@@ -17,7 +13,6 @@ export class ApiError extends Error {
 }
 
 export const Api = axios.create({
-  baseURL: API_BASE,
   withCredentials: true,
 });
 

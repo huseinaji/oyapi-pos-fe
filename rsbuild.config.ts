@@ -10,12 +10,8 @@ export default defineConfig({
     }),
     pluginTailwindcss(),
   ],
-  source: {
-    define: {
-      'import.meta.env.API_BASE_URL': JSON.stringify(
-        process.env.API_BASE_URL ?? '',
-      ),
-    },
+  html: {
+    title: 'Oyapi POS',
   },
   server: {
     port: 3003,

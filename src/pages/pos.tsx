@@ -30,7 +30,6 @@ import { ApiError } from '@/lib/api/index';
 import { ProductGridSkeleton } from '../components/ui/skeleton';
 import { usePosProductsQuery } from '@/lib/product/product-store';
 import { useCreatePOSTransactionMutation } from '@/lib/transaction/transaction-store';
-import { ITEM_TYPE_LABELS } from '@/lib/product/product-types';
 import { useMeQuery } from '@/lib/auth/auth-store';
 import type { Product } from '../types/inde';
 
@@ -38,6 +37,14 @@ const paymentSteps = ['Cart', 'Payment', 'Review'] as const;
 type PaymentStep = 0 | 1 | 2;
 
 const WALK_IN_CUSTOMER = 'Walk-in Customer';
+
+function getProductCategoryKey(
+  product: Pick<Product, 'category' | 'categoryId'>,
+) {
+  if (product.categoryId) return `id:${product.categoryId}`;
+  if (product.category) return `name:${product.category}`;
+  return null;
+}
 
 function showInsufficientStockToast(description: string) {
   toast.error('Insufficient Stock', {
@@ -69,7 +76,9 @@ export default function PosPage() {
   }, [recalculate]);
 
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(
+    null,
+  );
   const [lastAddedId, setLastAddedId] = useState<string | null>(null);
   const [focusedProductIndex, setFocusedProductIndex] = useState(-1);
 
@@ -129,16 +138,21 @@ export default function PosPage() {
           .toLowerCase()
           .includes(search.toLowerCase());
         const matchesCategory =
-          selectedCategory === 'All' || p.category === selectedCategory;
+          selectedCategoryKey === null ||
+          getProductCategoryKey(p) === selectedCategoryKey;
         return matchesSearch && matchesCategory;
       }),
-    [products, search, selectedCategory],
+    [products, search, selectedCategoryKey],
   );
 
-  const categoryOptions = useMemo(
-    () => ['All', ...new Set(products.map((p) => p.category))],
-    [products],
-  );
+  const categoryOptions = useMemo(() => {
+    const categories = new Map<string, string>();
+    for (const product of products) {
+      const key = getProductCategoryKey(product);
+      if (key) categories.set(key, product.category || 'Uncategorized');
+    }
+    return [...categories].map(([id, name]) => ({ id, name }));
+  }, [products]);
 
   const handleAddProduct = (productId: string) => {
     const product = products.find((p) => p.id === productId);
@@ -195,17 +209,29 @@ export default function PosPage() {
 
         <div className="shrink-0 pt-3">
           <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {categoryOptions.map((cat) => (
+            <button
+              onClick={() => setSelectedCategoryKey(null)}
+              aria-pressed={selectedCategoryKey === null}
+              className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition active:scale-95 ${
+                selectedCategoryKey === null
+                  ? 'bg-[var(--accent-strong)] text-white shadow-sm'
+                  : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:border-[var(--accent)]/40 hover:text-[var(--foreground)]'
+              }`}
+            >
+              All
+            </button>
+            {categoryOptions.map((category) => (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
+                key={category.id}
+                onClick={() => setSelectedCategoryKey(category.id)}
+                aria-pressed={selectedCategoryKey === category.id}
                 className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition active:scale-95 ${
-                  selectedCategory === cat
+                  selectedCategoryKey === category.id
                     ? 'bg-[var(--accent-strong)] text-white shadow-sm'
                     : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:border-[var(--accent)]/40 hover:text-[var(--foreground)]'
                 }`}
               >
-                {ITEM_TYPE_LABELS[cat as keyof typeof ITEM_TYPE_LABELS] ?? cat}
+                {category.name}
               </button>
             ))}
           </div>
@@ -351,9 +377,7 @@ function ProductCard({
         )}
         <div className="mt-2 flex items-center justify-between gap-1">
           <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
-            {ITEM_TYPE_LABELS[
-              product.category as keyof typeof ITEM_TYPE_LABELS
-            ] ?? product.category}
+            {product.category || 'Uncategorized'}
           </span>
           <span
             className={`text-[11px] font-medium ${isOutOfStock ? 'text-[var(--status-danger)]' : 'text-[var(--muted)]'}`}

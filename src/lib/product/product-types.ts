@@ -32,6 +32,7 @@ export type ApiItemResponse = Omit<ApiItem, 'category'> & {
 export type ApiItem = {
   id: string;
   name: string;
+  status?: 'active' | 'inactive';
   imageUrl?: string | null;
   category: string;
   type?: string;
@@ -103,7 +104,13 @@ export type ItemBundleComponentDto = {
 export type UpdateItemDto = Partial<
   Pick<
     CreateItemDto,
-    'name' | 'categoryId' | 'description' | 'uom' | 'basePrice' | 'sellingPrice' | 'imageUrl'
+    | 'name'
+    | 'categoryId'
+    | 'description'
+    | 'uom'
+    | 'basePrice'
+    | 'sellingPrice'
+    | 'imageUrl'
   >
 > & {
   status?: 'active' | 'inactive';

@@ -11,6 +11,8 @@ import {
   PackageOpen,
   Save,
   RefreshCw,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppButton } from '@/components/ui/app-button';
@@ -412,6 +414,34 @@ export default function ProductsPage() {
     }
   };
 
+  const handleToggleItemStatus = async (item: ApiItem) => {
+    const nextStatus =
+      item.status?.toLowerCase() === 'inactive' ? 'active' : 'inactive';
+
+    try {
+      await updateProductMutation.mutateAsync({
+        id: item.id,
+        body: { status: nextStatus },
+      });
+      setDetailItem((current) =>
+        current?.id === item.id ? { ...current, status: nextStatus } : current,
+      );
+      toast.success(
+        nextStatus === 'active' ? 'Item enabled' : 'Item disabled',
+        {
+          description: `"${item.name}" is now ${nextStatus}.`,
+        },
+      );
+    } catch (err) {
+      toast.error(
+        nextStatus === 'active'
+          ? 'Failed to enable item'
+          : 'Failed to disable item',
+        { description: extractApiError(err) },
+      );
+    }
+  };
+
   const desktopColumns = useMemo<ColumnDef<ApiItem>[]>(
     () => [
       {
@@ -494,6 +524,18 @@ export default function ProductsPage() {
                   onClick: () => void openEdit(row.original),
                 },
                 {
+                  label:
+                    row.original.status?.toLowerCase() === 'inactive'
+                      ? 'Enable'
+                      : 'Disable',
+                  icon:
+                    row.original.status?.toLowerCase() === 'inactive'
+                      ? Eye
+                      : EyeOff,
+                  disabled: updateProductMutation.isPending,
+                  onClick: () => void handleToggleItemStatus(row.original),
+                },
+                {
                   label: 'Delete',
                   icon: Trash2,
                   danger: true,
@@ -507,10 +549,12 @@ export default function ProductsPage() {
     ],
     [
       getCategoryName,
+      handleToggleItemStatus,
       openDeleteConfirm,
       openEdit,
       pageSize,
       pagination.pageIndex,
+      updateProductMutation.isPending,
     ],
   );
   const mobileColumns = useMemo<ColumnDef<ApiItem>[]>(
@@ -575,6 +619,18 @@ export default function ProductsPage() {
                   onClick: () => void openEdit(row.original),
                 },
                 {
+                  label:
+                    row.original.status?.toLowerCase() === 'inactive'
+                      ? 'Enable'
+                      : 'Disable',
+                  icon:
+                    row.original.status?.toLowerCase() === 'inactive'
+                      ? Eye
+                      : EyeOff,
+                  disabled: updateProductMutation.isPending,
+                  onClick: () => void handleToggleItemStatus(row.original),
+                },
+                {
                   label: 'Delete',
                   icon: Trash2,
                   danger: true,
@@ -588,10 +644,12 @@ export default function ProductsPage() {
     ],
     [
       getCategoryName,
+      handleToggleItemStatus,
       openDeleteConfirm,
       openEdit,
       pageSize,
       pagination.pageIndex,
+      updateProductMutation.isPending,
     ],
   );
   const tableState = { pagination };
@@ -713,12 +771,12 @@ export default function ProductsPage() {
         {!isLoading && !storeError && (
           <>
             {filteredItems.length > 0 && (
-              <div >
-                  <TransactionsTable
-                    desktopTable={desktopTable}
-                    mobileTable={mobileTable}
-                    onRowClick={openDetail}
-                  />
+              <div>
+                <TransactionsTable
+                  desktopTable={desktopTable}
+                  mobileTable={mobileTable}
+                  onRowClick={openDetail}
+                />
 
                 <ItemsPagination
                   desktopTable={desktopTable}
@@ -1143,6 +1201,8 @@ export default function ProductsPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onEdit={(item) => void openEdit(item)}
+        onToggleStatus={(item) => void handleToggleItemStatus(item)}
+        isUpdatingStatus={updateProductMutation.isPending}
         onViewFull={(item) => {
           setDetailOpen(false);
           navigate(`/products/${item.id}`);

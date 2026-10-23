@@ -3,6 +3,8 @@ import {
   Boxes,
   CalendarClock,
   CircleDollarSign,
+  Eye,
+  EyeOff,
   Package,
   Tag,
   X,
@@ -31,6 +33,8 @@ type ItemDetailDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit: (item: ApiItem) => void;
+  onToggleStatus: (item: ApiItem) => void;
+  isUpdatingStatus: boolean;
   onViewFull: (item: ApiItem) => void;
 };
 
@@ -46,9 +50,12 @@ export function ItemDetailDrawer({
   open,
   onOpenChange,
   onEdit,
+  onToggleStatus,
+  isUpdatingStatus,
   onViewFull,
 }: ItemDetailDrawerProps) {
   const isMobile = useIsMobile();
+  const isInactive = item?.status?.toLowerCase() === 'inactive';
 
   return (
     <Drawer
@@ -70,14 +77,31 @@ export function ItemDetailDrawer({
                     {item.name}
                   </DrawerTitle>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onOpenChange(false)}
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                  aria-label="Close item details"
-                >
-                  <X size={16} />
-                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <AppButton
+                    variant="secondary"
+                    onClick={() => item && onToggleStatus(item)}
+                    disabled={isUpdatingStatus}
+                    aria-label={isInactive ? 'Enable item' : 'Disable item'}
+                  >
+                    {isInactive ? <Eye size={14} /> : <EyeOff size={14} />}
+                    <span className="ml-2">
+                      {isUpdatingStatus
+                        ? 'Updating…'
+                        : isInactive
+                          ? 'Enable'
+                          : 'Disable'}
+                    </span>
+                  </AppButton>
+                  <button
+                    type="button"
+                    onClick={() => onOpenChange(false)}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    aria-label="Close item details"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
               <DrawerDescription className="text-left">
                 {item.category || 'Uncategorized'} ·{' '}

@@ -95,7 +95,7 @@ export default function ItemCategoriesPage() {
           </div>
         ) : (
           <div className="overflow-hidden rounded-[10px] border border-[var(--border)]">
-            <Table className="min-w-[420px]">
+            <Table>
               <TableHeader className="bg-[var(--surface-muted)]">
                 <TableRow className="hover:bg-transparent">
                   <TableHead>Category</TableHead>

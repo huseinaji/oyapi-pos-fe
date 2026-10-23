@@ -1,6 +1,11 @@
 import axios from 'axios';
 import type { ApiErrorBody } from '../../types/api';
 
+export const API_BASE = (import.meta.env.PUBLIC_API_BASE_URL ?? '').replace(
+  /\/+$/,
+  '',
+);
+
 export class ApiError extends Error {
   constructor(
     public readonly statusCode: number,
@@ -13,6 +18,7 @@ export class ApiError extends Error {
 }
 
 export const Api = axios.create({
+  baseURL: API_BASE,
   withCredentials: true,
 });
 

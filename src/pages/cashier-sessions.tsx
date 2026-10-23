@@ -41,6 +41,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table';
+import { ITEM_TYPE_OPTIONS } from '@/lib/product/product-types';
 
 type OpeningStockRow = {
   id: number;
@@ -196,7 +197,11 @@ export default function CashierSessionsPage() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
-  const availableItems = productsQuery.data?.rows ?? [];
+  // filter tidak muncul untuk item bundle
+  const availableItems = (productsQuery.data?.rows ?? [])
+    .filter(i => i.type !== ITEM_TYPE_OPTIONS[2]);
+
+  console.log('available items', availableItems)
   const selectableItems = availableItems.filter(
     (item) => !openingStockRows.some((line) => line.itemId === item.id),
   );

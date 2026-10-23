@@ -49,7 +49,9 @@ export function useCreateProductMutation() {
     },
     onSuccess: (item) => {
       queryClient.setQueryData(productQueryKeys.detail(storeId, item.id), item);
-      void queryClient.invalidateQueries({ queryKey: productQueryKeys.list(storeId) });
+      void queryClient.invalidateQueries({
+        queryKey: productQueryKeys.list(storeId),
+      });
       void queryClient.invalidateQueries({
         queryKey: productQueryKeys.sellableItems(storeId),
       });
@@ -68,7 +70,9 @@ export function useUpdateProductMutation() {
     },
     onSuccess: (item) => {
       queryClient.setQueryData(productQueryKeys.detail(storeId, item.id), item);
-      void queryClient.invalidateQueries({ queryKey: productQueryKeys.list(storeId) });
+      void queryClient.invalidateQueries({
+        queryKey: productQueryKeys.list(storeId),
+      });
       void queryClient.invalidateQueries({
         queryKey: productQueryKeys.sellableItems(storeId),
       });
@@ -86,8 +90,13 @@ export function useDeleteProductMutation() {
       return productsApi.remove(storeId, id);
     },
     onSuccess: (_, id) => {
-      queryClient.removeQueries({ queryKey: productQueryKeys.detail(storeId, id), exact: true });
-      void queryClient.invalidateQueries({ queryKey: productQueryKeys.list(storeId) });
+      queryClient.removeQueries({
+        queryKey: productQueryKeys.detail(storeId, id),
+        exact: true,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: productQueryKeys.list(storeId),
+      });
       void queryClient.invalidateQueries({
         queryKey: productQueryKeys.sellableItems(storeId),
       });
@@ -108,16 +117,20 @@ export const mapProduct = (item: ApiItem): Product => ({
         (item.bin.actualQty ?? item.bin.stockValue ?? item.stock ?? 0) -
           (item.bin.reservedQty ?? 0),
       )
-    : item.stock ?? 0,
+    : (item.stock ?? 0),
   description: item.description ?? '',
   uom: item.uom,
 });
 
-const mapSellableProduct = (item: SellableItemResponse): Product => ({
+const mapSellableProduct = (
+  item: SellableItemResponse,
+  category?: Pick<ApiItem, 'category' | 'categoryId'>,
+): Product => ({
   id: item.id,
   name: item.name,
   imageUrl: item.imageUrl,
-  category: item.type,
+  category: category?.category ?? '',
+  categoryId: category?.categoryId,
   price: item.sellingPrice,
   stock: item.availableQty,
   description: item.description ?? '',
@@ -128,13 +141,23 @@ export function usePosProductsQuery() {
   const storeId = useMeQuery().data?.store?.storeId;
   const query = useQuery({
     queryKey: productQueryKeys.sellableItems(storeId),
-    queryFn: () => productsApi.listSellableItems(storeId!),
+    queryFn: async () => {
+      const [sellableItems, { rows: items }] = await Promise.all([
+        productsApi.listSellableItems(storeId!),
+        productsApi.list(storeId!),
+      ]);
+      const itemsById = new Map(items.map((item) => [item.id, item]));
+
+      return sellableItems.map((item) =>
+        mapSellableProduct(item, itemsById.get(item.id)),
+      );
+    },
     enabled: Boolean(storeId),
     refetchOnWindowFocus: true,
   });
 
   return {
     ...query,
-    data: query.data?.map(mapSellableProduct) ?? [],
+    data: query.data ?? [],
   };
 }

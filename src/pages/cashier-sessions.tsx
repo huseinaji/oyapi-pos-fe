@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Clock,
   FileText,
@@ -37,12 +37,10 @@ import type {
 import { DataTable } from '@/components/ui/data-table';
 import {
   getCoreRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
   type PaginationState,
-  type SortingState,
 } from '@tanstack/react-table';
 import { ITEM_TYPE_OPTIONS } from '@/lib/product/product-types';
 import { TablePagination } from '@/components/ui/table-pagination';
@@ -108,13 +106,42 @@ export default function CashierSessionsPage() {
     [],
   );
   const openingRowId = useRef(0);
-  const [sessionSorting, setSessionSorting] = useState<SortingState>([
-    { id: 'openedAt', desc: true },
-  ]);
   const [sessionPagination, setSessionPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
   });
+  const sortedSessions = useMemo(
+    () =>
+      [...sessions].sort((left, right) =>
+        right.openedAt.localeCompare(left.openedAt),
+      ),
+    [sessions],
+  );
+  const paginatedSessions = useMemo(
+    () =>
+      sortedSessions.slice(
+        sessionPagination.pageIndex * sessionPagination.pageSize,
+        (sessionPagination.pageIndex + 1) * sessionPagination.pageSize,
+      ),
+    [sessionPagination.pageIndex, sessionPagination.pageSize, sortedSessions],
+  );
+  useEffect(() => {
+    const lastPageIndex = Math.max(
+      0,
+      Math.ceil(sessions.length / sessionPagination.pageSize) - 1,
+    );
+
+    if (sessionPagination.pageIndex > lastPageIndex) {
+      setSessionPagination((current) => ({
+        ...current,
+        pageIndex: lastPageIndex,
+      }));
+    }
+  }, [
+    sessionPagination.pageIndex,
+    sessionPagination.pageSize,
+    sessions.length,
+  ]);
   const sessionColumns = useMemo<ColumnDef<CashierSession>[]>(
     () => [
       {
@@ -156,14 +183,9 @@ export default function CashierSessionsPage() {
     [],
   );
   const sessionsTable = useReactTable({
-    data: sessions,
+    data: paginatedSessions,
     columns: sessionColumns,
-    onSortingChange: setSessionSorting,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    onPaginationChange: setSessionPagination,
-    state: { sorting: sessionSorting, pagination: sessionPagination },
   });
   const openSessionDetails = (session: CashierSession) =>
     setDocumentSession(session);
@@ -198,7 +220,7 @@ export default function CashierSessionsPage() {
     [],
   );
   const mobileSessionsTable = useReactTable({
-    data: sessionsTable.getRowModel().rows.map((row) => row.original),
+    data: paginatedSessions,
     columns: mobileSessionColumns,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (session) => session.id,
@@ -419,8 +441,21 @@ export default function CashierSessionsPage() {
             />
             <TablePagination
               table={sessionsTable}
-              hideWhenSinglePage
-              className="px-0"
+              className="hidden px-0 md:flex"
+              pagination={sessionPagination}
+              totalItems={sessions.length}
+              onPageChange={(pageIndex) =>
+                setSessionPagination((current) => ({ ...current, pageIndex }))
+              }
+            />
+            <TablePagination
+              table={mobileSessionsTable}
+              className="px-0 md:hidden"
+              pagination={sessionPagination}
+              totalItems={sessions.length}
+              onPageChange={(pageIndex) =>
+                setSessionPagination((current) => ({ ...current, pageIndex }))
+              }
             />
           </>
         )}

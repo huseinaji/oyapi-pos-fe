@@ -11,8 +11,8 @@ import {
   type PaginationState,
 } from '@tanstack/react-table';
 import type { StockLedgerEntry } from '@/lib/stock/stock-types';
-import { TablePagination } from '@/components/ui/table-pagination';
 import { SectionCard } from '@/components/ui/section-card';
+import { StockLedgerPagination } from './stock-ledger-pagination';
 import { StockLedgerEntryDrawer } from './stock-ledger-detail';
 import { TransactionsTable } from '../transactions/transactions-table';
 
@@ -241,7 +241,7 @@ export default function StockLedgerPage() {
               mobileTable={mobileTable}
               onRowClick={handleRowClick}
             />
-            <TablePagination table={table} />
+            <StockLedgerPagination table={table} />
           </>
         )}
       </SectionCard>

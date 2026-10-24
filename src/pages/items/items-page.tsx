@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -25,7 +25,6 @@ import { AppSelect } from '@/components/ui/app-select';
 import { TableSkeleton, CardGridSkeleton } from '@/components/ui/skeleton';
 import {
   getCoreRowModel,
-  getPaginationRowModel,
   useReactTable,
   type ColumnDef,
   type PaginationState,
@@ -62,9 +61,9 @@ import {
 } from '@/lib/product/product-store';
 import { FormField } from '@/components/layout/form-field';
 import { useItemCategoriesQuery } from '@/lib/product/item-categories-store';
+import { ItemsPagination } from './items-pagination';
 import { ItemDetailDrawer } from './item-detail-drawer';
 import { TransactionsTable } from '../transactions/transactions-table';
-import { TablePagination } from '@/components/ui/table-pagination';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -303,6 +302,24 @@ export default function ProductsPage() {
   const pageSize = pagination.pageSize;
   const resetPage = () =>
     setPagination((current) => ({ ...current, pageIndex: 0 }));
+  const paginatedItems = useMemo(
+    () =>
+      filteredItems.slice(
+        pagination.pageIndex * pageSize,
+        (pagination.pageIndex + 1) * pageSize,
+      ),
+    [filteredItems, pageSize, pagination.pageIndex],
+  );
+  useEffect(() => {
+    const lastPageIndex = Math.max(
+      0,
+      Math.ceil(filteredItems.length / pageSize) - 1,
+    );
+
+    if (pagination.pageIndex > lastPageIndex) {
+      setPagination((current) => ({ ...current, pageIndex: lastPageIndex }));
+    }
+  }, [filteredItems.length, pageSize, pagination.pageIndex]);
 
   // ---------------------------------------------------------------------------
   // Dialog helpers
@@ -434,13 +451,9 @@ export default function ProductsPage() {
         id: 'number',
         enableSorting: false,
         header: () => <span className="block text-center">No.</span>,
-        cell: ({ row, table }) => (
+        cell: ({ row }) => (
           <div className="text-center text-[var(--muted)]">
-            {pagination.pageIndex * pageSize +
-              table
-                .getRowModel()
-                .rows.findIndex((current) => current.id === row.id) +
-              1}
+            {pagination.pageIndex * pageSize + row.index + 1}
           </div>
         ),
       },
@@ -549,13 +562,9 @@ export default function ProductsPage() {
         id: 'number',
         enableSorting: false,
         header: () => <span className="block text-center">No.</span>,
-        cell: ({ row, table }) => (
+        cell: ({ row }) => (
           <div className="text-center text-xs text-[var(--muted)]">
-            {pagination.pageIndex * pageSize +
-              table
-                .getRowModel()
-                .rows.findIndex((current) => current.id === row.id) +
-              1}
+            {pagination.pageIndex * pageSize + row.index + 1}
           </div>
         ),
       },
@@ -638,23 +647,14 @@ export default function ProductsPage() {
       updateProductMutation.isPending,
     ],
   );
-  const tableState = { pagination };
-  const updatePagination = (updater: Parameters<typeof setPagination>[0]) => {
-    setPagination((current) =>
-      typeof updater === 'function' ? updater(current) : updater,
-    );
-  };
   const desktopTable = useReactTable({
-    data: filteredItems,
+    data: paginatedItems,
     columns: desktopColumns,
-    state: tableState,
-    onPaginationChange: updatePagination,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getRowId: (item) => item.id,
   });
   const mobileTable = useReactTable({
-    data: desktopTable.getRowModel().rows.map((row) => row.original),
+    data: paginatedItems,
     columns: mobileColumns,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (item) => item.id,
@@ -694,7 +694,10 @@ export default function ProductsPage() {
             <Search size={16} className="text-[var(--muted)]" />
             <input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                resetPage();
+              }}
               placeholder="Search by name…"
               className="w-full bg-transparent outline-none"
             />
@@ -761,10 +764,14 @@ export default function ProductsPage() {
                   onRowClick={openDetail}
                 />
 
-                <TablePagination
-                  table={desktopTable}
-                  hideWhenSinglePage
-                  className="mt-3 border-t border-[var(--border)] px-3 md:px-4"
+                <ItemsPagination
+                  desktopTable={desktopTable}
+                  mobileTable={mobileTable}
+                  pagination={pagination}
+                  totalItems={filteredItems.length}
+                  onPageChange={(pageIndex) =>
+                    setPagination((current) => ({ ...current, pageIndex }))
+                  }
                 />
               </div>
             )}

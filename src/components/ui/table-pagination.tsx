@@ -12,19 +12,42 @@ type TablePaginationProps<TData> = {
   table: TanStackTable<TData>;
   hideWhenSinglePage?: boolean;
   className?: string;
+  pagination?: { pageIndex: number; pageSize: number };
+  totalItems?: number;
+  onPageChange?: (pageIndex: number) => void;
 };
 
 export function TablePagination<TData>({
   table,
   hideWhenSinglePage = false,
   className = '',
+  pagination,
+  totalItems: totalItemsOverride,
+  onPageChange,
 }: TablePaginationProps<TData>) {
-  const { pageIndex, pageSize } = table.getState().pagination;
-  const totalItems = table.getRowCount();
-  const pageCount = table.getPageCount();
+  const { pageIndex, pageSize } = pagination ?? table.getState().pagination;
+  const totalItems = totalItemsOverride ?? table.getRowCount();
+  const pageCount =
+    pagination || totalItemsOverride !== undefined
+      ? Math.ceil(totalItems / pageSize)
+      : table.getPageCount();
   const currentPage = pageIndex + 1;
   const start = totalItems === 0 ? 0 : pageIndex * pageSize + 1;
   const end = Math.min((pageIndex + 1) * pageSize, totalItems);
+  const canPreviousPage = onPageChange
+    ? pageIndex > 0
+    : table.getCanPreviousPage();
+  const canNextPage = onPageChange
+    ? pageIndex < pageCount - 1
+    : table.getCanNextPage();
+  const changePage = (nextPageIndex: number) => {
+    if (onPageChange) {
+      onPageChange(nextPageIndex);
+      return;
+    }
+
+    table.setPageIndex(nextPageIndex);
+  };
 
   if (hideWhenSinglePage && pageCount <= 1) return null;
 
@@ -60,8 +83,8 @@ export function TablePagination<TData>({
             <Button
               variant="ghost"
               className="gap-1 px-2 text-[var(--muted)] disabled:opacity-50 sm:px-3"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
+              onClick={() => changePage(pageIndex - 1)}
+              disabled={!canPreviousPage}
               aria-label="Go to previous page"
             >
               <ChevronLeft aria-hidden="true" className="size-4" />
@@ -84,7 +107,7 @@ export function TablePagination<TData>({
                       ? 'bg-[var(--accent)] text-white hover:bg-[var(--foreground)]/90 hover:text-white'
                       : 'bg-[var(--surface-muted)] text-[var(--foreground)] hover:bg-[var(--border)]'
                   }
-                  onClick={() => table.setPageIndex(page - 1)}
+                  onClick={() => changePage(page - 1)}
                   aria-current={page === currentPage ? 'page' : undefined}
                   aria-label={`Go to page ${page}`}
                 >
@@ -98,8 +121,8 @@ export function TablePagination<TData>({
             <Button
               variant="ghost"
               className="gap-1 px-2 text-[var(--foreground)] disabled:opacity-50 sm:px-3"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
+              onClick={() => changePage(pageIndex + 1)}
+              disabled={!canNextPage}
               aria-label="Go to next page"
             >
               <span>Next</span>

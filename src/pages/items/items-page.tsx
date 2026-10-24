@@ -147,7 +147,9 @@ function itemToForm(item: ApiItem): ItemForm {
     sellingPrice: item.sellingPrice,
     isMaintainStock: item.isMaintainStock,
     initialStock: 0,
-    itemComponents: [],
+    itemComponents: (item.itemComponents ?? []).map(
+      ({ componentItemId, qty }) => ({ componentItemId, qty }),
+    ),
   };
 }
 
@@ -175,11 +177,7 @@ function formToDto(form: ItemForm): CreateItemDto {
 }
 
 function formToUpdateDto(form: ItemForm): UpdateItemDto {
-  const {
-    initialStock: _initialStock,
-    itemComponents: _itemComponents,
-    ...updateDto
-  } = formToDto(form);
+  const { initialStock: _initialStock, ...updateDto } = formToDto(form);
   return {
     ...updateDto,
     imageUrl: form.imageUrl?.trim() ?? '',
@@ -205,6 +203,10 @@ export default function ProductsPage() {
   const deleteProductMutation = useDeleteProductMutation();
   const items = productsQuery.data?.rows ?? [];
   const categories = categoriesQuery.data?.rows ?? [];
+  const rawMaterialItems = useMemo(
+    () => items.filter((item) => item.type === 'raw_material'),
+    [items],
+  );
   const isLoading = productsQuery.isLoading;
   const storeError = productsQuery.isError ? 'Failed to load items' : null;
 
@@ -284,8 +286,8 @@ export default function ProductsPage() {
   );
 
   const getCategoryName = (item: ApiItem) =>
-    categories.find((category) => category.id === item.categoryId)?.name ??
     item.category?.name ??
+    categories.find((category) => category.id === item.categoryId)?.name ??
     'Uncategorized';
 
   const filteredItems = useMemo(() => {
@@ -368,7 +370,6 @@ export default function ProductsPage() {
   const handleSave = async (formState: ItemForm) => {
     setFormApiError(null);
     if (
-      !editingId &&
       formState.type === 'item_bundle' &&
       formState.itemComponents.length === 0
     ) {
@@ -484,7 +485,7 @@ export default function ProductsPage() {
         header: 'Category',
         enableSorting: false,
         cell: ({ row }) => (
-          <span className="block max-w-0 truncate text-[var(--muted)]">
+          <span className="block max-w-[12rem] truncate text-[var(--muted)]">
             {getCategoryName(row.original)}
           </span>
         ),
@@ -931,7 +932,7 @@ export default function ProductsPage() {
             />
           </FormField>
 
-          {isBundle && !editingId && (
+          {isBundle && (
             <div className="space-y-3 sm:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -948,7 +949,9 @@ export default function ProductsPage() {
                     appendComponent({ componentItemId: '', qty: 1 });
                     clearErrors('itemComponents');
                   }}
-                  disabled={items.length === 0 || productsQuery.isLoading}
+                  disabled={
+                    rawMaterialItems.length === 0 || productsQuery.isLoading
+                  }
                 >
                   <Plus size={14} />
                   <span className="ml-2">Add component</span>
@@ -969,11 +972,17 @@ export default function ProductsPage() {
 
               {componentFields.map((component, index) => {
                 const selectedId = selectedComponents[index]?.componentItemId;
+                const existingComponent = items
+                  .find((item) => item.id === editingId)
+                  ?.itemComponents?.find(
+                    (itemComponent) =>
+                      itemComponent.componentItemId === selectedId,
+                  );
                 const componentError =
                   formErrors.itemComponents?.[index]?.componentItemId?.message;
                 const quantityError =
                   formErrors.itemComponents?.[index]?.qty?.message;
-                const componentOptions = items
+                const componentOptions = rawMaterialItems
                   .filter(
                     (item) =>
                       item.id === selectedId ||
@@ -1004,6 +1013,11 @@ export default function ProductsPage() {
                         render={({ field }) => (
                           <AppSelect
                             value={field.value}
+                            valueLabel={
+                              existingComponent?.componentItem?.name
+                                ? `${existingComponent.componentItem.name} · existing component`
+                                : undefined
+                            }
                             onValueChange={field.onChange}
                             placeholder={
                               productsQuery.isLoading
@@ -1014,7 +1028,8 @@ export default function ProductsPage() {
                             }
                             options={componentOptions}
                             disabled={
-                              productsQuery.isLoading || items.length === 0
+                              productsQuery.isLoading ||
+                              rawMaterialItems.length === 0
                             }
                             className={selectClass()}
                           />

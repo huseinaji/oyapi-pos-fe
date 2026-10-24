@@ -16,6 +16,17 @@ export type ApiItemCategory = {
   name: string;
 };
 
+export type ApiItemComponent = {
+  componentItemId: string;
+  qty: number;
+  componentItem?: {
+    name: string;
+    description: string | null;
+    uom: string;
+    sellingPrice: number;
+  } | null;
+};
+
 /** Shape of a single item returned by the API */
 export type ApiItem = {
   id: string;
@@ -35,7 +46,7 @@ export type ApiItem = {
   createdAt: string;
   updatedAt: string;
   bin: ApiItemBin | null;
-  itemComponents: unknown[];
+  itemComponents?: ApiItemComponent[] | null;
 };
 
 /** GET /api/v1/store/{storeId}/items — list response */
@@ -115,6 +126,7 @@ export type UpdateItemDto = Partial<
   >
 > & {
   status?: 'active' | 'inactive';
+  itemComponents?: ItemBundleComponentDto[];
 };
 
 /** Enum values accepted by the backend for item type */

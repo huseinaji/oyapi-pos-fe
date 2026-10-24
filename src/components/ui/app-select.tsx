@@ -11,6 +11,7 @@ type AppSelectOption = {
 
 type AppSelectProps = {
   value: string;
+  valueLabel?: string;
   onValueChange: (value: string) => void;
   options: AppSelectOption[];
   placeholder?: string;
@@ -23,6 +24,7 @@ type AppSelectProps = {
 
 export function AppSelect({
   value,
+  valueLabel,
   onValueChange,
   options,
   placeholder = 'Select an option',
@@ -79,14 +81,8 @@ export function AppSelect({
       setMenuPosition({
         top: opensAbove
           ? Math.max(8, rect.top - maxHeight - 6)
-          : Math.min(
-              rect.bottom + 6,
-              window.innerHeight - maxHeight - 8,
-            ),
-        left: Math.max(
-          8,
-          Math.min(rect.left, window.innerWidth - width - 8),
-        ),
+          : Math.min(rect.bottom + 6, window.innerHeight - maxHeight - 8),
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
         width,
         maxHeight,
       });
@@ -189,10 +185,12 @@ export function AppSelect({
       >
         <span
           className={
-            selected ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'
+            selected || valueLabel
+              ? 'text-[var(--foreground)]'
+              : 'text-[var(--muted)]'
           }
         >
-          {selected?.label ?? placeholder}
+          {selected?.label ?? valueLabel ?? placeholder}
         </span>
         <ChevronDown
           size={15}

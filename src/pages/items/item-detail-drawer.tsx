@@ -56,6 +56,7 @@ export function ItemDetailDrawer({
 }: ItemDetailDrawerProps) {
   const isMobile = useIsMobile();
   const isInactive = item?.status?.toLowerCase() === 'inactive';
+  const itemComponents = item?.itemComponents ?? [];
   return (
     <Drawer
       open={open}
@@ -124,6 +125,53 @@ export function ItemDetailDrawer({
               <p className="text-sm leading-6 text-[var(--muted)]">
                 {item.description?.trim() || 'No description provided.'}
               </p>
+
+              {item.type === 'item_bundle' && (
+                <section className="space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                      Bundle components
+                    </h3>
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      Items and quantities included in this bundle.
+                    </p>
+                  </div>
+
+                  {itemComponents.length > 0 ? (
+                    <ul className="divide-y divide-[var(--border)]/70 border-y border-[var(--border)]/70">
+                      {itemComponents.map((component) => (
+                        <li
+                          key={component.componentItemId}
+                          className="flex items-center justify-between gap-4 py-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                              {component.componentItem?.name ??
+                                component.componentItemId}
+                            </p>
+                            {component.componentItem?.sellingPrice !==
+                              undefined && (
+                              <p className="mt-0.5 text-xs text-[var(--muted)]">
+                                {formatRp(component.componentItem.sellingPrice)}
+                              </p>
+                            )}
+                          </div>
+                          <p className="shrink-0 text-sm text-[var(--muted)]">
+                            {component.qty}
+                            {component.componentItem?.uom
+                              ? ` ${ITEM_UOM_LABELS[component.componentItem.uom as ItemUom] ?? component.componentItem.uom}`
+                              : ''}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-[var(--border)] px-3 py-4 text-sm text-[var(--muted)]">
+                      No component items are recorded for this bundle.
+                    </p>
+                  )}
+                </section>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="rounded-xl border border-[var(--border)]/70 bg-[var(--surface-muted)] p-3">

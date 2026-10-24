@@ -5,48 +5,37 @@ import type { ItemFilterParams } from '@/types/api';
 // ---------------------------------------------------------------------------
 
 export type ApiItemBin = {
-  itemId?: string;
-  actualQty?: number;
-  reservedQty?: number;
-  stockValue?: number;
+  actualQty: number;
+  reservedQty: number;
   uom: string;
 };
 
 export type ItemFilters = Omit<ItemFilterParams, 'page' | 'limit'>;
 
-export type ApiItemResponse = Omit<ApiItem, 'category'> & {
-  category?:
-    | string
-    | {
-        id?: string;
-        _id?: string;
-        categoryId?: string;
-        name?: string;
-        categoryName?: string;
-      }
-    | null;
-  categoryName?: string;
+export type ApiItemCategory = {
+  name: string;
 };
 
 /** Shape of a single item returned by the API */
 export type ApiItem = {
   id: string;
   name: string;
-  status?: 'active' | 'inactive';
+  storeId: string;
+  status: 'active' | 'inactive';
   imageUrl?: string | null;
-  category: string;
-  type?: string;
-  categoryId?: string;
-  description: string;
+  categoryId: string | null;
+  category: ApiItemCategory | null;
+  type: string;
+  description: string | null;
   uom: string;
   basePrice: number;
   sellingPrice: number;
   isMaintainStock: boolean;
-  stock?: number;
-  bin?: ApiItemBin;
-  createdBy: string;
+  createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  bin: ApiItemBin | null;
+  itemComponents: unknown[];
 };
 
 /** GET /api/v1/store/{storeId}/items — list response */
@@ -57,18 +46,30 @@ export type ItemListResponse = {
 
 export type SellableItemResponse = {
   id: string;
+  storeId: string;
   name: string;
   imageUrl?: string | null;
+  status: 'active' | 'inactive';
   type: string;
-  description?: string | null;
+  description: string | null;
   uom: string;
+  basePrice: number;
   sellingPrice: number;
+  isMaintainStock: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  categoryId: string | null;
+  itemComponents: unknown[];
   availableQty: number;
 };
 
 export type StoreItemCategory = {
   id: string;
   name: string;
+  createdAt: string;
+  updatedAt: string;
+  storeId: string;
 };
 
 export type CreateStoreItemCategoryDto = {

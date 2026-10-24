@@ -1,5 +1,5 @@
 /**
- * TypeScript types derived from the backend Swagger contract.
+ * API types derived from Swagger request schemas and verified runtime responses.
  * Base URL: http://localhost:3001
  */
 
@@ -11,7 +11,7 @@
 export type LoginDto = {
   usernameOrEmail: string;
   password: string;
-  rememberMe?: boolean;
+  rememberMe: boolean;
 };
 
 /** POST /api/v1/auth/login — successful response */
@@ -22,19 +22,33 @@ export type LoginResponse = {
 /** POST /api/v1/auth/logout — OpenAPI documents 201 with no response schema. */
 export type LogoutResponse = void;
 
+export type AuthMeUser = {
+  sub: string;
+  username: string;
+  email: string;
+  role: ApiUserRole;
+  status: ApiUserStatus;
+  store?: {
+    storeId: string;
+    role: ApiStoreRole;
+  };
+};
 
+export type AuthMeResponse = {
+  userPayload: AuthMeUser;
+  rememberMe: boolean;
+};
 
 /** POST /api/v1/auth/register — request body */
 export type SignupDto = {
   username: string;
   email: string;
   password: string;
-  role: ApiUserRole;
 };
 
 export type ApiUserRole = 'ADMIN' | 'USER' | 'CASHIER';
 export type ApiUserStatus = 'ACTIVE' | 'INACTIVE';
-
+export type ApiStoreRole = 'admin' | 'cashier';
 
 // ---------------------------------------------------------------------------
 // User
@@ -45,16 +59,32 @@ export type ApiUser = {
   id: string;
   username: string;
   email: string;
-  password?: string;
   role: ApiUserRole;
   status: ApiUserStatus;
+  lastLogin: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  storeMembers: Array<{
+    id: string;
+    storeId: string;
+    userId: string;
+    role: ApiStoreRole;
+    isDefault: boolean | null;
+    store: {
+      name: string;
+      imageUrl: string | null;
+      address: string | null;
+      phone: string | null;
+    };
+  }>;
 };
 
-/** GET /api/v1/users — list response (plain array) */
-export type UserListResponse = ApiUser[];
+/** GET /api/v1/users — paginated response */
+export type UserListResponse = {
+  count: number;
+  rows: ApiUser[];
+};
 
 /** PATCH /api/v1/users/:id — request body (all optional) */
 export type UpdateUserDto = {
@@ -94,4 +124,3 @@ export type ApiErrorBody = {
   error?: string;
   statusCode: number;
 };
-

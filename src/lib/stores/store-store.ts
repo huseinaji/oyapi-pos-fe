@@ -47,7 +47,7 @@ export function useSelectStoreMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => StoreApi.select(id),
+    mutationFn: (storeId: string) => StoreApi.select(storeId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: authQueryKeys.me });
     },

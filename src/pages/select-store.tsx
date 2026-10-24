@@ -1,5 +1,12 @@
 import { useNavigate } from 'react-router';
-import { ShoppingCart, MapPin, Phone, ChevronRight, Plus, LogOut } from 'lucide-react';
+import {
+  ShoppingCart,
+  MapPin,
+  Phone,
+  ChevronRight,
+  Plus,
+  LogOut,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthStore, useLogoutMutation } from '../lib/auth/auth-store';
 import {
@@ -62,7 +69,10 @@ export default function SelectStorePage() {
           </div>
         ) : stores.length === 0 ? (
           <div className="rounded-[16px] border border-dashed border-[var(--border)] bg-[var(--card)] p-8 text-center">
-            <ShoppingCart size={28} className="mx-auto mb-3 text-[var(--muted)]" />
+            <ShoppingCart
+              size={28}
+              className="mx-auto mb-3 text-[var(--muted)]"
+            />
             <p className="font-medium">No stores yet</p>
             <p className="mt-1 text-sm text-[var(--muted)]">
               Create your first store to get started.

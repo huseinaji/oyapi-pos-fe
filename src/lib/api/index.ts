@@ -1,10 +1,9 @@
 import axios from 'axios';
 import type { ApiErrorBody } from '../../types/api';
 
-export const API_BASE = (import.meta.env.PUBLIC_API_BASE_URL ?? '').replace(
-  /\/+$/,
-  '',
-);
+export const API_BASE = (
+  import.meta.env.DEV ? '' : (import.meta.env.API_BASE_URL ?? '')
+).replace(/\/+$/, '');
 
 export class ApiError extends Error {
   constructor(

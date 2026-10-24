@@ -1,17 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ApiUser, ApiUserRole, ApiUserStatus, LoginDto } from '../../types/api';
+import type { LoginDto } from '../../types/api';
 import { createStore } from '../store-utils';
 import { AuthApi } from '@/lib/auth/login-api';
-import type { StorePayload } from '@/lib/stores/store-types';
+import type { AuthMeUser } from '@/types/api';
 
-export type AuthUser = {
-  id: string;
-  username: string;
-  email: string;
-  role: ApiUserRole;
-  status: ApiUserStatus;
-  store?: StorePayload;
-};
+export type AuthUser = AuthMeUser;
 
 type AuthState = {
   currentUser: AuthUser | null;
@@ -34,7 +27,6 @@ export const useAuthStore = store.useStore;
 export const authQueryKeys = {
   me: ['auth', 'me'],
 } as const;
-
 
 export function useMeQuery() {
   return useQuery({
@@ -99,18 +91,3 @@ export function useLogoutMutation() {
     },
   });
 }
-
-export const authStore = {
-  getCurrentUser: () => store.getState().currentUser,
-  setUser: (user: ApiUser | null) => store.getState().setUser(
-    user
-      ? {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-      }
-      : null,
-  ),
-};

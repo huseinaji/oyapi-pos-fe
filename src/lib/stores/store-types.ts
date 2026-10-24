@@ -1,31 +1,22 @@
-export type StoreRole = 'ADMIN' | 'CASHIER';
+import type { ApiStoreRole, ApiUserRole, ApiUserStatus } from '@/types/api';
 
-export function normalizeStoreRole(value: unknown): StoreRole | null {
-  if (typeof value !== 'string') return null;
-  const role = value.toUpperCase();
-  return role === 'ADMIN' || role === 'CASHIER' ? role : null;
-}
+export type StoreRole = ApiStoreRole;
 
 export type StoreMember = {
   id: string;
-  username: string;
-  email: string;
-  role: StoreRole | 'USER';
-  status?: 'ACTIVE' | 'INACTIVE';
-  createdAt?: string;
-  updatedAt?: string;
-};
-
-export type StorePayload = {
   storeId: string;
+  userId: string;
   role: StoreRole;
-};
-
-export type SelectStoreResponse = {
-  success: boolean;
-  data: {
-    store: any;
-    role: StoreRole;
+  isDefault: boolean | null;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    username: string;
+    email: string;
+    role: ApiUserRole;
+    status: ApiUserStatus;
+    lastLogin: string | null;
   };
 };
 
@@ -36,22 +27,26 @@ export type ApiStore = {
   imageUrl?: string | null;
   address?: string | null;
   phone?: string | null;
+  status?: string;
+  updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | null;
+  createdBy?: string | null;
   storeMember: ApiStoreMember[];
-  creator: {
-    email: string,
-    id: string,
-    lastLogin: string,
-    role: string,
-    status: string,
-    username: string
-  }
+  creator?: {
+    email: string;
+    id: string;
+    lastLogin: string | null;
+    role: string;
+    status: string;
+    username: string;
+  } | null;
 };
 
 export type ApiStoreMember = {
   id: string;
-  isDefault: boolean;
+  isDefault: boolean | null;
   role: StoreRole;
   storeId: string;
   userId: string;
@@ -61,6 +56,11 @@ export type ApiStoreMember = {
 export type MyStoreResponse = {
   count: number;
   rows: ApiStore[];
+};
+
+export type StoreMemberListResponse = {
+  count: number;
+  rows: StoreMember[];
 };
 
 /** POST /api/v1/store — request body */

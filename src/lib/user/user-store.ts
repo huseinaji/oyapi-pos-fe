@@ -1,4 +1,3 @@
-
 import type { ApiUser, UpdateUserDto } from '@/types/api';
 import { usersApi } from './users-api';
 import { createStore } from '@/lib/store-utils';
@@ -18,7 +17,8 @@ const store = createStore<UserState>({
   async fetchUsers() {
     store.setState({ isLoading: true, error: null });
     try {
-      store.setState({ users: await usersApi.list(), isLoading: false });
+      const response = await usersApi.list();
+      store.setState({ users: response.rows, isLoading: false });
     } catch (error) {
       store.setState({
         isLoading: false,

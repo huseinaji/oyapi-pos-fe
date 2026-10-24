@@ -72,10 +72,10 @@ export async function syncOfflineTransactions(): Promise<number> {
   let syncedCount = 0;
   for (const queuedTransaction of queuedTransactions) {
     try {
-      const storeId = queuedTransaction.storeId ?? queuedTransaction.payload.storeId;
+      const storeId =
+        queuedTransaction.storeId ?? queuedTransaction.payload.storeId;
       if (!storeId) break;
       const payload: CreatePOSTransactionDto = {
-        posSessionId: queuedTransaction.payload.posSessionId,
         customer: queuedTransaction.payload.customer,
         paymentMethod: queuedTransaction.payload.paymentMethod,
         items: queuedTransaction.payload.items.map(({ itemId, qty }) => ({
@@ -105,6 +105,7 @@ export async function syncOfflineTransactions(): Promise<number> {
 export function isNetworkError(error: unknown): boolean {
   return (
     !navigator.onLine ||
-    (error instanceof TypeError && error.message.toLowerCase().includes('fetch'))
+    (error instanceof TypeError &&
+      error.message.toLowerCase().includes('fetch'))
   );
 }

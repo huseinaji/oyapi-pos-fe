@@ -29,6 +29,7 @@ import {
   useCloseCashierSessionMutation,
   useOpenCashierSessionMutation,
 } from '@/lib/cashier-sessions/cashier-sessions-store';
+import { useTransactionsQuery } from '@/lib/transaction/transaction-store';
 import type {
   CashierSession,
   CashierStockSnapshot,
@@ -36,12 +37,15 @@ import type {
 import { DataTable } from '@/components/ui/data-table';
 import {
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type PaginationState,
   type SortingState,
 } from '@tanstack/react-table';
 import { ITEM_TYPE_OPTIONS } from '@/lib/product/product-types';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 type OpeningStockRow = {
   id: number;
@@ -57,30 +61,28 @@ function formatDate(value?: string): string {
   }).format(new Date(value));
 }
 
-function compareStock(session: CashierSession) {
-  const opening = new Map(
-    session.openingStock.map((item) => [item.itemId, item]),
-  );
-  const closing = new Map(
-    (session.closingStock ?? []).map((item) => [item.itemId, item]),
-  );
-  const itemIds = new Set([...opening.keys(), ...closing.keys()]);
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0,
+  }).format(value);
+}
 
-  return [...itemIds].map((itemId) => {
-    const openingItem = opening.get(itemId);
-    const closingItem = closing.get(itemId);
-    const openingQty = openingItem?.quantity ?? 0;
-    const closingQty = closingItem?.quantity;
+function compareStock(session: CashierSession) {
+  return session.openingStock.map((openingItem) => {
+    const soldQuantity = openingItem.soldQuantity;
 
     return {
-      itemId,
-      name: openingItem?.itemName ?? closingItem?.itemName ?? itemId,
-      uom: openingItem?.uom ?? closingItem?.uom ?? '',
-      openingQty,
-      closingQty,
-      soldQuantity: openingItem?.soldQuantity ?? closingItem?.soldQuantity,
-      difference:
-        closingQty === undefined ? undefined : closingQty - openingQty,
+      itemId: openingItem.itemId,
+      name: openingItem.itemName,
+      uom: openingItem.uom,
+      openingQty: openingItem.quantity,
+      finalStockQty:
+        soldQuantity === undefined
+          ? undefined
+          : openingItem.quantity - soldQuantity,
+      soldQuantity,
     };
   });
 }
@@ -95,7 +97,7 @@ export default function CashierSessionsPage() {
   const sessions = sessionsQuery.data ?? [];
   const activeSession = sessions.find((session) => session.status === 'OPEN');
   const canCloseSession = Boolean(
-    user && activeSession?.openedBy.userId === user.id,
+    user && activeSession?.openedBy.userId === user.sub,
   );
   const [openingDialogOpen, setOpeningDialogOpen] = useState(false);
   const [closingDialogOpen, setClosingDialogOpen] = useState(false);
@@ -109,6 +111,10 @@ export default function CashierSessionsPage() {
   const [sessionSorting, setSessionSorting] = useState<SortingState>([
     { id: 'openedAt', desc: true },
   ]);
+  const [sessionPagination, setSessionPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
   const sessionColumns = useMemo<ColumnDef<CashierSession>[]>(
     () => [
       {
@@ -152,10 +158,12 @@ export default function CashierSessionsPage() {
   const sessionsTable = useReactTable({
     data: sessions,
     columns: sessionColumns,
-    state: { sorting: sessionSorting },
     onSortingChange: setSessionSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    onPaginationChange: setSessionPagination,
+    state: { sorting: sessionSorting, pagination: sessionPagination },
   });
   const openSessionDetails = (session: CashierSession) =>
     setDocumentSession(session);
@@ -190,18 +198,17 @@ export default function CashierSessionsPage() {
     [],
   );
   const mobileSessionsTable = useReactTable({
-    data: sessions,
+    data: sessionsTable.getRowModel().rows.map((row) => row.original),
     columns: mobileSessionColumns,
-    state: { sorting: sessionSorting },
-    onSortingChange: setSessionSorting,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    getRowId: (session) => session.id,
   });
   // filter tidak muncul untuk item bundle
-  const availableItems = (productsQuery.data?.rows ?? [])
-    .filter(i => i.type !== ITEM_TYPE_OPTIONS[2]);
+  const availableItems = (productsQuery.data?.rows ?? []).filter(
+    (i) => i.type !== ITEM_TYPE_OPTIONS[2],
+  );
 
-  console.log('available items', availableItems)
+  console.log('available items', availableItems);
   const selectableItems = availableItems.filter(
     (item) => !openingStockRows.some((line) => line.itemId === item.id),
   );
@@ -215,7 +222,7 @@ export default function CashierSessionsPage() {
       )
       .map((item) => ({
         value: item.id,
-        label: `${item.name} · bin ${item.bin?.actualQty ?? item.stock ?? 0} ${item.uom}`,
+        label: `${item.name} · bin ${item.bin?.actualQty ?? 0} ${item.uom}`,
       }));
   const addOpeningRow = () => {
     openingRowId.current += 1;
@@ -229,11 +236,7 @@ export default function CashierSessionsPage() {
     if (!item) return;
 
     setOpeningStockRows((current) => {
-      if (
-        current.some(
-          (line) => line.itemId === itemId && line.id !== rowId,
-        )
-      ) {
+      if (current.some((line) => line.itemId === itemId && line.id !== rowId)) {
         return current;
       }
 
@@ -242,7 +245,7 @@ export default function CashierSessionsPage() {
           ? {
               ...line,
               itemId: item.id,
-              quantity: String(item.bin?.actualQty ?? item.stock ?? 0),
+              quantity: String(item.bin?.actualQty ?? 0),
             }
           : line,
       );
@@ -413,6 +416,11 @@ export default function CashierSessionsPage() {
               rowClassName="hover:bg-[var(--surface-accent)]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"
               containerClassName="overflow-hidden rounded-[10px] border border-[var(--border)] md:hidden"
               tableClassName="table-auto"
+            />
+            <TablePagination
+              table={sessionsTable}
+              hideWhenSinglePage
+              className="px-0"
             />
           </>
         )}
@@ -657,7 +665,24 @@ function Info({
 }
 
 function DocumentDetails({ session }: { session: CashierSession }) {
+  const transactionsQuery = useTransactionsQuery({
+    posSessionId: session.id,
+  });
   const stockRows = compareStock(session);
+  const salesSummary = useMemo(
+    () =>
+      (transactionsQuery.data ?? [])
+        .filter((transaction) => transaction.status === 'complete')
+        .reduce(
+          (summary, transaction) => {
+            summary.total += transaction.total;
+            summary[transaction.paymentMethod] += transaction.total;
+            return summary;
+          },
+          { total: 0, cash: 0, qris: 0 },
+        ),
+    [transactionsQuery.data],
+  );
   const columns: ColumnDef<(typeof stockRows)[number]>[] = [
     {
       accessorKey: 'name',
@@ -680,7 +705,7 @@ function DocumentDetails({ session }: { session: CashierSession }) {
     },
     {
       accessorKey: 'soldQuantity',
-      header: () => <span className="block text-right">POS sold</span>,
+      header: () => <span className="block text-right">Sold</span>,
       cell: ({ row }) => (
         <div className="text-right">
           {row.original.soldQuantity === undefined
@@ -690,24 +715,13 @@ function DocumentDetails({ session }: { session: CashierSession }) {
       ),
     },
     {
-      accessorKey: 'closingQty',
-      header: () => <span className="block text-right">Closing stock</span>,
+      accessorKey: 'finalStockQty',
+      header: () => <span className="block text-right">Final stock</span>,
       cell: ({ row }) => (
         <div className="text-right">
-          {row.original.closingQty === undefined
+          {row.original.finalStockQty === undefined
             ? '—'
-            : `${row.original.closingQty} ${row.original.uom}`}
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'difference',
-      header: () => <span className="block text-right">Difference</span>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          {row.original.difference === undefined
-            ? '—'
-            : `${row.original.difference > 0 ? '+' : ''}${row.original.difference}`}
+            : `${row.original.finalStockQty} ${row.original.uom}`}
         </div>
       ),
     },
@@ -737,10 +751,10 @@ function DocumentDetails({ session }: { session: CashierSession }) {
       header: () => <span className="block text-right">Stock</span>,
       cell: ({ row }) => (
         <div className="text-right text-[10px] leading-4">
-          <p>Open {row.original.openingQty}</p>
+          <p>Opening {row.original.openingQty}</p>
           <p className="text-[var(--muted)]">
-            Sold {row.original.soldQuantity ?? '—'} · Close{' '}
-            {row.original.closingQty ?? '—'}
+            Sold {row.original.soldQuantity ?? '—'} · Final{' '}
+            {row.original.finalStockQty ?? '—'}
           </p>
         </div>
       ),
@@ -781,11 +795,46 @@ function DocumentDetails({ session }: { session: CashierSession }) {
           value={session.closer?.username ?? 'Not closed'}
         />
       </div>
+      {transactionsQuery.isError ? (
+        <p className="text-sm text-[var(--status-danger)]" role="alert">
+          Failed to load session revenue:{' '}
+          {transactionsQuery.error instanceof Error
+            ? transactionsQuery.error.message
+            : 'Please try again.'}
+        </p>
+      ) : (
+        <div
+          aria-label="Session revenue summary"
+          className="grid overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--card)] sm:grid-cols-3"
+        >
+          {[
+            { label: 'Total revenue', value: salesSummary.total },
+            { label: 'Cash', value: salesSummary.cash },
+            { label: 'QRIS', value: salesSummary.qris },
+          ].map((item, index) => (
+            <div
+              key={item.label}
+              className={`px-4 py-3 ${
+                index > 0
+                  ? 'border-t border-[var(--border)] sm:border-l sm:border-t-0'
+                  : ''
+              }`}
+            >
+              <p className="text-xs text-[var(--muted)]">{item.label}</p>
+              <p className="mt-1 text-base font-semibold tabular-nums">
+                {transactionsQuery.isLoading
+                  ? 'Loading...'
+                  : formatCurrency(item.value)}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
       <DataTable
         table={table}
         emptyContent="No items were present in this stock snapshot."
         containerClassName="hidden overflow-hidden rounded-[10px] border border-[var(--border)] md:block"
-        tableClassName="min-w-[680px]"
+        tableClassName="min-w-[600px]"
       />
       <DataTable
         table={mobileTable}

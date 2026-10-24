@@ -35,7 +35,6 @@ import { ApiError } from '@/lib/api';
 import type {
   ApiItem,
   CreateItemDto,
-  StoreItemCategory,
   ItemType,
   ItemUom,
   ItemBundleComponentDto,
@@ -63,9 +62,9 @@ import {
 } from '@/lib/product/product-store';
 import { FormField } from '@/components/layout/form-field';
 import { useItemCategoriesQuery } from '@/lib/product/item-categories-store';
-import { ItemsPagination } from './items-pagination';
 import { ItemDetailDrawer } from './item-detail-drawer';
 import { TransactionsTable } from '../transactions/transactions-table';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -138,20 +137,12 @@ function formatUom(uom: string): string {
   return ITEM_UOM_LABELS[uom as ItemUom] ?? uom.toUpperCase();
 }
 
-function itemToForm(item: ApiItem, categories: StoreItemCategory[]): ItemForm {
-  const categoryName = item.category.trim().toLocaleLowerCase();
-  const categoryId =
-    item.categoryId ??
-    categories.find(
-      (category) => category.name.trim().toLocaleLowerCase() === categoryName,
-    )?.id ??
-    '';
-
+function itemToForm(item: ApiItem): ItemForm {
   return {
     name: item.name,
     imageUrl: item.imageUrl ?? '',
     type: item.type ?? ITEM_TYPE_OPTIONS[0],
-    categoryId,
+    categoryId: item.categoryId ?? '',
     uom: item.uom,
     basePrice: item.basePrice,
     sellingPrice: item.sellingPrice,
@@ -295,7 +286,7 @@ export default function ProductsPage() {
 
   const getCategoryName = (item: ApiItem) =>
     categories.find((category) => category.id === item.categoryId)?.name ??
-    item.category ??
+    item.category?.name ??
     'Uncategorized';
 
   const filteredItems = useMemo(() => {
@@ -324,16 +315,10 @@ export default function ProductsPage() {
     setFormOpen(true);
   };
 
-  const openEdit = async (item: ApiItem) => {
+  const openEdit = (item: ApiItem) => {
     setDetailOpen(false);
-    let availableCategories = categories;
-    if (!item.categoryId && categoriesQuery.isLoading) {
-      const result = await categoriesQuery.refetch();
-      availableCategories = result.data?.rows ?? [];
-    }
-
     setEditingId(item.id);
-    reset(itemToForm(item, availableCategories));
+    reset(itemToForm(item));
     setFormApiError(null);
     setFormOpen(true);
   };
@@ -423,6 +408,7 @@ export default function ProductsPage() {
         id: item.id,
         body: { status: nextStatus },
       });
+      console.log(item);
       setDetailItem((current) =>
         current?.id === item.id ? { ...current, status: nextStatus } : current,
       );
@@ -668,12 +654,9 @@ export default function ProductsPage() {
     getRowId: (item) => item.id,
   });
   const mobileTable = useReactTable({
-    data: filteredItems,
+    data: desktopTable.getRowModel().rows.map((row) => row.original),
     columns: mobileColumns,
-    state: tableState,
-    onPaginationChange: updatePagination,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getRowId: (item) => item.id,
   });
 
@@ -778,9 +761,10 @@ export default function ProductsPage() {
                   onRowClick={openDetail}
                 />
 
-                <ItemsPagination
-                  desktopTable={desktopTable}
-                  mobileTable={mobileTable}
+                <TablePagination
+                  table={desktopTable}
+                  hideWhenSinglePage
+                  className="mt-3 border-t border-[var(--border)] px-3 md:px-4"
                 />
               </div>
             )}

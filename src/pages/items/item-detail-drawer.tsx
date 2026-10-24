@@ -56,7 +56,6 @@ export function ItemDetailDrawer({
 }: ItemDetailDrawerProps) {
   const isMobile = useIsMobile();
   const isInactive = item?.status?.toLowerCase() === 'inactive';
-
   return (
     <Drawer
       open={open}
@@ -104,7 +103,7 @@ export function ItemDetailDrawer({
                 </div>
               </div>
               <DrawerDescription className="text-left">
-                {item.category || 'Uncategorized'} ·{' '}
+                {item.category?.name || 'Uncategorized'} ·{' '}
                 {ITEM_TYPE_LABELS[item.type as ItemType] ?? item.type ?? 'Item'}
               </DrawerDescription>
             </DrawerHeader>
@@ -143,7 +142,7 @@ export function ItemDetailDrawer({
                   </p>
                   <p className="mt-1 text-base font-semibold text-[var(--foreground)]">
                     {item.isMaintainStock
-                      ? (item.bin?.stockValue ?? item.stock ?? '—')
+                      ? (item.bin?.actualQty ?? '—')
                       : 'Not tracked'}
                     {item.isMaintainStock && (
                       <span className="ml-1 text-xs font-normal text-[var(--muted)]">
@@ -161,7 +160,7 @@ export function ItemDetailDrawer({
                     Category
                   </dt>
                   <dd className="text-right text-sm font-medium text-[var(--foreground)]">
-                    {item.category || 'Uncategorized'}
+                    {item.category?.name || 'Uncategorized'}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4 py-3">

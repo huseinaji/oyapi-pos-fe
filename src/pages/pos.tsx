@@ -491,7 +491,6 @@ function useCheckout({ products, storeId, settings, navigate }: CheckoutProps) {
       await createTransactionMutation.mutateAsync({
         paymentMethod,
         customer: customer || WALK_IN_CUSTOMER,
-        posSessionId: '',
         items: items.map((item) => ({
           itemId: item.id,
           qty: item.quantity,

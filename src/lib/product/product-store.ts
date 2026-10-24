@@ -108,16 +108,12 @@ export const mapProduct = (item: ApiItem): Product => ({
   id: item.id,
   name: item.name,
   imageUrl: item.imageUrl,
-  category: item.category,
-  categoryId: item.categoryId,
+  category: item.category?.name ?? '',
+  categoryId: item.categoryId ?? undefined,
   price: item.sellingPrice,
   stock: item.bin
-    ? Math.max(
-        0,
-        (item.bin.actualQty ?? item.bin.stockValue ?? item.stock ?? 0) -
-          (item.bin.reservedQty ?? 0),
-      )
-    : (item.stock ?? 0),
+    ? Math.max(0, item.bin.actualQty - (item.bin.reservedQty ?? 0))
+    : 0,
   description: item.description ?? '',
   uom: item.uom,
 });
@@ -129,8 +125,8 @@ const mapSellableProduct = (
   id: item.id,
   name: item.name,
   imageUrl: item.imageUrl,
-  category: category?.category ?? '',
-  categoryId: category?.categoryId,
+  category: category?.category?.name ?? '',
+  categoryId: category?.categoryId ?? undefined,
   price: item.sellingPrice,
   stock: item.availableQty,
   description: item.description ?? '',

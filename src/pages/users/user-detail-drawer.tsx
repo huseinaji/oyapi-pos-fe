@@ -52,7 +52,7 @@ export function UserDetailDrawer({
                     Store member
                   </p>
                   <DrawerTitle className="mt-1 truncate text-left text-lg font-semibold text-[var(--foreground)]">
-                    {user.username}
+                    {user.user.username}
                   </DrawerTitle>
                 </div>
                 <button
@@ -72,14 +72,14 @@ export function UserDetailDrawer({
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 pt-3">
               <div className="flex items-center gap-4 rounded-xl border border-[var(--border)]/70 bg-[var(--surface-muted)] p-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--surface-accent)] text-sm font-semibold text-[var(--accent)]">
-                  {user.username.slice(0, 2).toUpperCase()}
+                  {user.user.username.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-[var(--foreground)]">
-                    {user.username}
+                    {user.user.username}
                   </p>
                   <p className="truncate text-sm text-[var(--muted)]">
-                    {user.email}
+                    {user.user.email}
                   </p>
                 </div>
               </div>
@@ -101,14 +101,14 @@ export function UserDetailDrawer({
                   </dt>
                   <dd
                     className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      user.status === 'ACTIVE'
+                      user.user.status === 'ACTIVE'
                         ? 'bg-[var(--status-success)]/10 text-[var(--status-success)]'
-                        : user.status === 'INACTIVE'
+                        : user.user.status === 'INACTIVE'
                           ? 'bg-[var(--surface-muted)] text-[var(--muted)]'
                           : 'text-[var(--muted)]'
                     }`}
                   >
-                    {user.status ?? '—'}
+                    {user.user.status ?? '—'}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4 py-3">
@@ -117,7 +117,7 @@ export function UserDetailDrawer({
                     Email
                   </dt>
                   <dd className="max-w-[65%] truncate text-right text-sm font-medium text-[var(--foreground)]">
-                    {user.email}
+                    {user.user.email}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4 py-3">
@@ -138,7 +138,7 @@ export function UserDetailDrawer({
                 <div className="flex items-center justify-between gap-4 py-3">
                   <dt className="text-sm text-[var(--muted)]">User ID</dt>
                   <dd className="max-w-[55%] truncate text-right text-xs font-medium text-[var(--foreground)]">
-                    {user.id}
+                    {user.userId}
                   </dd>
                 </div>
               </dl>

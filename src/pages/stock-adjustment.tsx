@@ -29,7 +29,7 @@ type CompletedAdjustment = {
 };
 
 function getStock(item: ApiItem) {
-  return item.bin?.stockValue ?? item.stock ?? 0;
+  return item.bin?.actualQty ?? 0;
 }
 
 export default function StockAdjustmentPage() {
@@ -117,7 +117,7 @@ export default function StockAdjustmentPage() {
       cell: ({ row }) => (
         <div>
           <p className="font-medium">{row.original.item.name}</p>
-          <p className="text-xs text-[var(--muted)]">{row.original.item.category} · {row.original.item.uom} · Click to inspect</p>
+          <p className="text-xs text-[var(--muted)]">{row.original.item.category?.name ?? 'Uncategorized'} · {row.original.item.uom} · Click to inspect</p>
         </div>
       ),
     },
@@ -455,7 +455,7 @@ export default function StockAdjustmentPage() {
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <DetailStat
                     label="Category"
-                    value={detailLine.item.category}
+                    value={detailLine.item.category?.name ?? 'Uncategorized'}
                   />
                   <DetailStat label="UOM" value={detailLine.item.uom} />
                   <DetailStat

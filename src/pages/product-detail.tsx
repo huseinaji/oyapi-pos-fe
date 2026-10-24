@@ -198,7 +198,7 @@ export default function ProductDetailPage() {
     );
   }
 
-  const stock = product.bin?.stockValue ?? product.stock ?? 0;
+  const stock = product.bin?.actualQty ?? 0;
   const stockTone =
     stock > 0 ? 'text-[var(--status-success)]' : 'text-[var(--status-danger)]';
 
@@ -207,7 +207,7 @@ export default function ProductDetailPage() {
       <PageHeader
         eyebrow="Inventory / Item detail"
         title={form?.name ?? product.name}
-        description={`${form?.categoryId ? (categories.find((category) => category.id === form.categoryId)?.name ?? product.category ?? 'Uncategorized') : 'Uncategorized'} · ${formatItemType(product.type ?? '')} · ${formatUom(form?.uom ?? product.uom)}`}
+        description={`${form?.categoryId ? (categories.find((category) => category.id === form.categoryId)?.name ?? product.category?.name ?? 'Uncategorized') : 'Uncategorized'} · ${formatItemType(product.type ?? '')} · ${formatUom(form?.uom ?? product.uom)}`}
         action={
           <div className="flex flex-wrap gap-2">
             <AppButton

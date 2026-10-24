@@ -1,6 +1,5 @@
 import type {
   ApiItem,
-  ApiItemResponse,
   CreateItemDto,
   ItemFilters,
   SellableItemResponse,
@@ -17,58 +16,31 @@ function sellableItemsPath(storeId: string): string {
   return `/api/v1/store/${encodeURIComponent(storeId)}/transaction/sellable-item`;
 }
 
-function normalizeItem(value: ApiItemResponse): ApiItem {
-  const rawCategory = value.category;
-  const categoryObject =
-    rawCategory && typeof rawCategory === 'object' ? rawCategory : {};
-  const categoryId =
-    value.categoryId ??
-    categoryObject.categoryId ??
-    categoryObject.id ??
-    categoryObject._id;
-  const categoryName =
-    typeof rawCategory === 'string'
-      ? rawCategory
-      : categoryObject.name ?? categoryObject.categoryName ?? value.categoryName ?? '';
-
-  return {
-    ...value,
-    type: value.type ?? '',
-    categoryId: categoryId == null ? undefined : String(categoryId),
-    category: categoryName,
-  };
-}
-
 export const productsApi = {
   listSellableItems: (storeId: string) =>
     Api.get<SellableItemResponse[]>(sellableItemsPath(storeId)).then(
       (response) => response.data,
     ),
   list: async (storeId: string, filters: ItemFilters = {}) => {
-    const response = await fetchAllPages((page, limit) =>
-      Api.get<PaginatedResponse<ApiItemResponse>>(storeItemsPath(storeId), {
+    return fetchAllPages((page, limit) =>
+      Api.get<PaginatedResponse<ApiItem>>(storeItemsPath(storeId), {
         params: { ...filters, page, limit },
       }).then((result) => result.data),
     );
-
-    return {
-      ...response,
-      rows: response.rows.map(normalizeItem),
-    };
   },
   get: (storeId: string, id: string) =>
-    Api.get<ApiItemResponse>(`${storeItemsPath(storeId)}/${encodeURIComponent(id)}`).then(
-      (response) => normalizeItem(response.data),
-    ),
+    Api.get<ApiItem>(
+      `${storeItemsPath(storeId)}/${encodeURIComponent(id)}`,
+    ).then((response) => response.data),
   create: (storeId: string, body: CreateItemDto) =>
-    Api.post<ApiItemResponse>(storeItemsPath(storeId), body).then((response) =>
-      normalizeItem(response.data),
+    Api.post<ApiItem>(storeItemsPath(storeId), body).then(
+      (response) => response.data,
     ),
   update: (storeId: string, id: string, body: UpdateItemDto) =>
-    Api.patch<ApiItemResponse>(
+    Api.patch<ApiItem>(
       `${storeItemsPath(storeId)}/${encodeURIComponent(id)}`,
       body,
-    ).then((response) => normalizeItem(response.data)),
+    ).then((response) => response.data),
   remove: (storeId: string, id: string) =>
     Api.delete<void>(`${storeItemsPath(storeId)}/${encodeURIComponent(id)}`),
 };

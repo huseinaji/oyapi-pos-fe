@@ -1,8 +1,7 @@
-import type { ApiUserRole, ApiUserStatus } from "@/types/api";
+import type { ApiUserRole, ApiUserStatus } from '@/types/api';
 
 /** POST /api/v1/store/{storeId}/transaction — request body */
 export type CreatePOSTransactionDto = {
-  posSessionId: string;
   paymentMethod: 'cash' | 'qris';
   customer: string;
   items: Array<{
@@ -20,6 +19,7 @@ export type SalesInvoiceItem = {
     name: string;
     description: string;
     uom: string;
+    sellingPrice: number;
   } | null;
   qty: number;
   amount: number;
@@ -31,13 +31,15 @@ export type SalesInvoiceCreator = {
   email: string;
   role: ApiUserRole;
   status: ApiUserStatus;
+  lastLogin: string;
 };
 
 export type SalesInvoice = {
   id: string;
-  userId: string;
   invoiceId: string;
-  customer?: string;
+  storeId: string;
+  posSessionId: string;
+  customer: string;
   paymentMethod: PaymentMethod;
   totalAmount: number;
   status: string;
@@ -46,7 +48,7 @@ export type SalesInvoice = {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
-  salesInvoiceItems?: SalesInvoiceItem[];
+  salesInvoiceItems: SalesInvoiceItem[];
   creator?: SalesInvoiceCreator | null;
 };
 
@@ -101,10 +103,6 @@ export type SalesInvoicePageParams = SalesInvoiceFilters & {
   limit?: number;
 };
 
-export type PaymentMethod =
-  | 'cash'
-  | 'qris'
+export type PaymentMethod = 'cash' | 'qris';
 
-export type TransactionStatus =
-  | 'complete'
-  | 'pending'
+export type TransactionStatus = 'complete' | 'pending';

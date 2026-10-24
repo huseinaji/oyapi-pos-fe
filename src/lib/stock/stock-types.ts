@@ -4,7 +4,7 @@ export type StockLedgerEntry = {
   id: string;
   reference: string;
   referenceId: string;
-  remarks?: string;
+  remarks: string | null;
   storeId: string;
   itemId: string;
   qty: number;
@@ -13,7 +13,7 @@ export type StockLedgerEntry = {
   status: StockLedgerStatus;
   createdAt: string;
   updatedAt: string;
-  deletedAt?: string | null;
+  deletedAt: string | null;
   item: {
     name: string;
     description: string;
@@ -34,9 +34,19 @@ export type StockLedgerResponse = {
 export type StockBin = {
   id: string;
   itemId: string;
-  itemName: string;
-  stockValue: number;
+  storeId: string;
+  qty: number;
+  reservedQty: number;
+  actualQty: number;
   uom: string;
+  createdAt: string;
+  updatedAt: string;
+  item: {
+    name: string;
+    description: string;
+    uom: ItemUom;
+    sellingPrice: number;
+  };
 };
 
 export type StockBinResponse = {

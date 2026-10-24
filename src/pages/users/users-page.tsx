@@ -35,7 +35,7 @@ import { UsersPagination } from './users-pagination';
 import { UsersTable } from './users-table';
 import { UserDetailDrawer } from './user-detail-drawer';
 
-const ROLE_OPTIONS = ['all', 'ADMIN', 'USER', 'CASHIER'] as const;
+const ROLE_OPTIONS = ['all', 'admin', 'cashier'] as const;
 type RoleFilter = (typeof ROLE_OPTIONS)[number];
 
 function extractApiError(error: unknown): string {
@@ -65,7 +65,7 @@ export default function UsersPage() {
   const storeId = currentUser?.store?.storeId;
   const membersQuery = useStoreMembersQuery(storeId);
   const assignMutation = useAssignStoreMemberMutation(storeId);
-  const members = membersQuery.data ?? [];
+  const members = membersQuery.data?.rows ?? [];
 
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
@@ -83,17 +83,19 @@ export default function UsersPage() {
     pageSize: 10,
   });
 
-  const currentMember = members.find((member) => member.id === currentUser?.id);
+  const currentMember = members.find(
+    (member) => member.userId === currentUser?.sub,
+  );
   const isStoreAdmin = currentMember
-    ? currentMember.role === 'ADMIN'
-    : currentUser?.store?.role === 'ADMIN';
+    ? currentMember.role === 'admin'
+    : currentUser?.store?.role === 'admin';
 
   const filteredMembers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return members.filter((member) => {
       const matchesQuery =
         !normalizedQuery ||
-        `${member.username} ${member.email}`
+        `${member.user.username} ${member.user.email}`
           .toLowerCase()
           .includes(normalizedQuery);
       const matchesRole = roleFilter === 'all' || member.role === roleFilter;
@@ -137,7 +139,7 @@ export default function UsersPage() {
         setAssignError(`No platform account found for "${username}".`);
         return;
       }
-      if (members.some((member) => member.id === user.id)) {
+      if (members.some((member) => member.userId === user.id)) {
         setAssignError(`"${user.username}" is already a member of this store.`);
         return;
       }
@@ -158,16 +160,17 @@ export default function UsersPage() {
   const columns = useMemo<ColumnDef<StoreMember>[]>(
     () => [
       {
-        accessorKey: 'username',
+        accessorFn: (member) => member.user.username,
+        id: 'username',
         header: 'Member',
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-accent)] text-xs font-semibold text-[var(--accent)]">
-              {row.original.username.slice(0, 2).toUpperCase()}
+              {row.original.user.username.slice(0, 2).toUpperCase()}
             </div>
             <div className="flex items-center gap-2">
-              <span className="font-medium">{row.original.username}</span>
-              {row.original.id === currentUser?.id && (
+              <span className="font-medium">{row.original.user.username}</span>
+              {row.original.userId === currentUser?.sub && (
                 <span className="rounded-full bg-[var(--accent-strong)]/15 px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
                   You
                 </span>
@@ -177,10 +180,11 @@ export default function UsersPage() {
         ),
       },
       {
-        accessorKey: 'email',
+        accessorFn: (member) => member.user.email,
+        id: 'email',
         header: 'Email',
         cell: ({ row }) => (
-          <span className="text-[var(--muted)]">{row.original.email}</span>
+          <span className="text-[var(--muted)]">{row.original.user.email}</span>
         ),
       },
       {
@@ -189,43 +193,45 @@ export default function UsersPage() {
         cell: ({ row }) => <RoleBadge role={row.original.role} />,
       },
       {
-        accessorKey: 'status',
+        accessorFn: (member) => member.user.status,
+        id: 'status',
         header: 'Account status',
         cell: ({ row }) =>
-          row.original.status ? (
+          row.original.user.status ? (
             <span
               className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                row.original.status === 'ACTIVE'
+                row.original.user.status === 'ACTIVE'
                   ? 'bg-[var(--surface-accent)] text-[var(--status-success)]'
                   : 'bg-[var(--surface-muted)] text-[var(--muted)]'
               }`}
             >
-              {row.original.status}
+              {row.original.user.status}
             </span>
           ) : (
             <span className="text-[var(--muted)]">—</span>
           ),
       },
     ],
-    [currentUser?.id],
+    [currentUser?.sub],
   );
   const mobileColumns = useMemo<ColumnDef<StoreMember>[]>(
     () => [
       {
-        accessorKey: 'username',
+        accessorFn: (member) => member.user.username,
+        id: 'username',
         header: 'Member',
         cell: ({ row }) => (
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold">
-              {row.original.username}
-              {row.original.id === currentUser?.id && (
+              {row.original.user.username}
+              {row.original.userId === currentUser?.sub && (
                 <span className="ml-1.5 text-[10px] font-semibold text-[var(--accent)]">
                   You
                 </span>
               )}
             </div>
             <p className="truncate text-[11px] text-[var(--muted)]">
-              {row.original.email}
+              {row.original.user.email}
             </p>
           </div>
         ),
@@ -236,7 +242,7 @@ export default function UsersPage() {
         cell: ({ row }) => <RoleBadge role={row.original.role} />,
       },
     ],
-    [currentUser?.id],
+    [currentUser?.sub],
   );
 
   const table = useReactTable({
@@ -320,7 +326,7 @@ export default function UsersPage() {
                     : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:border-[var(--accent)]/40'
                 }`}
               >
-                {role === 'all' ? 'All' : role}
+                {role === 'all' ? 'All' : role.toUpperCase()}
               </button>
             ))}
           </div>
@@ -421,10 +427,7 @@ export default function UsersPage() {
             {assignError}
           </div>
         )}
-        <FormField
-          label="Platform username"
-          required
-        >
+        <FormField label="Platform username" required>
           <input
             autoComplete="username"
             value={assignUsername}

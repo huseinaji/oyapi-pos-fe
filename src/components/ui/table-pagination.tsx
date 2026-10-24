@@ -8,19 +8,25 @@ import {
   PaginationItem,
 } from '@/components/ui/pagination';
 
-type StockLedgerPaginationProps<TData> = {
+type TablePaginationProps<TData> = {
   table: TanStackTable<TData>;
+  hideWhenSinglePage?: boolean;
+  className?: string;
 };
 
-export function StockLedgerPagination<TData>({
+export function TablePagination<TData>({
   table,
-}: StockLedgerPaginationProps<TData>) {
+  hideWhenSinglePage = false,
+  className = '',
+}: TablePaginationProps<TData>) {
   const { pageIndex, pageSize } = table.getState().pagination;
   const totalItems = table.getRowCount();
   const pageCount = table.getPageCount();
   const currentPage = pageIndex + 1;
   const start = totalItems === 0 ? 0 : pageIndex * pageSize + 1;
   const end = Math.min((pageIndex + 1) * pageSize, totalItems);
+
+  if (hideWhenSinglePage && pageCount <= 1) return null;
 
   const visiblePages: (number | 'ellipsis')[] =
     pageCount <= 3
@@ -38,7 +44,9 @@ export function StockLedgerPagination<TData>({
             ];
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-1 py-4 sm:px-1">
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 px-1 py-4 ${className}`}
+    >
       <p
         className="whitespace-nowrap text-sm text-[var(--muted)]"
         aria-live="polite"

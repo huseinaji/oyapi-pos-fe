@@ -10,37 +10,40 @@ import type {
 type PosSessionItemResponse = {
   itemId: string;
   openingQty: number;
-  soldQty?: number | null;
-  closingQty?: number | null;
-  item?: { id?: string; name?: string; uom?: string } | null;
+  soldQty: number;
+  closingQty: number;
+  item: {
+    id: string;
+    name: string;
+    description: string;
+    uom: string;
+    sellingPrice: number;
+    type: string;
+    isMaintainStock: boolean;
+    bin: {
+      actualQty: number;
+      reservedQty: number;
+      uom: string;
+    } | null;
+  };
 };
 
 export type PosSessionResponse = {
   id: string;
-  storeId?: string;
-  store?: { id?: string; storeId?: string } | null;
+  storeId: string;
+  store: {
+    name: string;
+    imageUrl: string | null;
+    address: string | null;
+    phone: string | null;
+  };
   status: string;
   createdAt: string;
+  updatedAt: string;
   createdBy: string;
-  closedAt?: string | null;
-  closedBy?: string;
-  items?: PosSessionItemResponse[];
-  creator: {
-    id: string,
-    username: string,
-    email: string,
-    role: string,
-    status: string,
-    lastLogin: string,
-  }
-  closer?: {
-    id: string,
-    username: string,
-    email: string,
-    role: string,
-    status: string,
-    lastLogin: string,
-  } | null
+  closedAt: string | null;
+  closedBy: string | null;
+  items: PosSessionItemResponse[];
 };
 
 type PosSessionFilters = {
@@ -82,7 +85,7 @@ function mapSnapshot(
 }
 
 function mapSession(value: PosSessionResponse): CashierSession {
-  const items = value.items ?? [];
+  const items = value.items;
   const openingStock = items.map((item) => mapSnapshot(item, item.openingQty));
   const isClosed = value.status.toLowerCase() === 'closed';
   const closingStock = isClosed
@@ -95,13 +98,13 @@ function mapSession(value: PosSessionResponse): CashierSession {
 
   return {
     id: value.id,
-    storeId: value.storeId ?? value.store?.storeId ?? value.store?.id ?? '',
+    storeId: value.storeId,
     status: isClosed ? 'CLOSED' : 'OPEN',
     openedAt: value.createdAt,
-    openedBy: mapOperator(value.creator ?? value.createdBy),
+    openedBy: mapOperator(value.createdBy),
     openingStock,
     ...(value.closedAt ? { closedAt: value.closedAt } : {}),
-    ...(value.closer ? { closer: mapOperator(value.closer) } : {}),
+    ...(value.closedBy ? { closer: mapOperator(value.closedBy) } : {}),
     ...(closingStock ? { closingStock } : {}),
   };
 }

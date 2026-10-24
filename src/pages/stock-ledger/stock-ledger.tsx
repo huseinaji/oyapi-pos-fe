@@ -11,7 +11,7 @@ import {
   type PaginationState,
 } from '@tanstack/react-table';
 import type { StockLedgerEntry } from '@/lib/stock/stock-types';
-import { StockLedgerPagination } from './stock-ledger-pagination';
+import { TablePagination } from '@/components/ui/table-pagination';
 import { SectionCard } from '@/components/ui/section-card';
 import { StockLedgerEntryDrawer } from './stock-ledger-detail';
 import { TransactionsTable } from '../transactions/transactions-table';
@@ -55,21 +55,26 @@ export default function StockLedgerPage() {
       accessorKey: 'ledgerDirection',
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-sm text-[var(--muted)]">{row.original.ledgerDirection}</span>
+        <span className="text-sm text-[var(--muted)]">
+          {row.original.ledgerDirection}
+        </span>
       ),
     },
     {
-      header: 'Quantity',
-      accessorKey: 'quantity',
+      header: 'Qty',
+      accessorKey: 'qty',
       enableSorting: false,
-      cell: ({ row }) => (
-        <div
-          className={`text-right text-sm font-semibold tabular-nums ${row.original.qty < 0 ? 'text-[var(--status-danger)]' : 'text-[var(--status-success)]'}`}
-        >
-          {row.original.qty > 0 ? '+' : ''}
-          {row.original.qty}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const isOut = row.original.ledgerDirection === 'out';
+        return (
+          <div
+            className={`text-right text-sm font-semibold tabular-nums ${isOut ? 'text-[var(--status-danger)]' : 'text-[var(--status-success)]'}`}
+          >
+            {isOut ? '-' : '+'}
+            {row.original.qty}
+          </div>
+        );
+      },
     },
     {
       header: 'Reference',
@@ -114,17 +119,20 @@ export default function StockLedgerPage() {
       ),
     },
     {
-      accessorKey: 'quantity',
+      accessorKey: 'qty',
       header: () => <span className="block text-right">Qty</span>,
       enableSorting: false,
-      cell: ({ row }) => (
-        <div
-          className={`text-right text-sm font-semibold tabular-nums ${row.original.qty < 0 ? 'text-[var(--status-danger)]' : 'text-[var(--status-success)]'}`}
-        >
-          {row.original.qty > 0 ? '+' : ''}
-          {row.original.qty}
-        </div>
-      ),
+      cell: ({ row }) => {
+        const isOutDirection = row.original.ledgerDirection === 'out';
+        return (
+          <div
+            className={`text-right text-sm font-semibold tabular-nums ${isOutDirection ? 'text-[var(--status-danger)]' : 'text-[var(--status-success)]'}`}
+          >
+            {isOutDirection ? '-' : '+'}
+            {row.original.qty}
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'recordedAt',
@@ -233,7 +241,7 @@ export default function StockLedgerPage() {
               mobileTable={mobileTable}
               onRowClick={handleRowClick}
             />
-            <StockLedgerPagination table={table} />
+            <TablePagination table={table} />
           </>
         )}
       </SectionCard>

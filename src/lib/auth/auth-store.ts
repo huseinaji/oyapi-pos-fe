@@ -6,6 +6,11 @@ import type { AuthMeUser } from '@/types/api';
 
 export type AuthUser = AuthMeUser;
 
+export function getAuthenticatedHomePath(user: AuthUser): string {
+  if (!user.store) return '/select-store';
+  return user.role === 'ADMIN' ? '/' : '/cashier-sessions';
+}
+
 type AuthState = {
   currentUser: AuthUser | null;
   isAuthenticated: boolean;

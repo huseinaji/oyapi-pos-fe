@@ -3,14 +3,16 @@ import { useLocation, useNavigate } from 'react-router';
 import { useAuthStore } from '../../lib/auth/auth-store';
 import { useUIStore } from '../../stores/ui-store';
 import { useOfflineTransactionSync } from '../../hooks/use-offline-transaction-sync';
+import { getAuthenticatedHomePath } from '@/lib/auth/auth-store';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
 const ADMIN_ONLY_ROUTES = [
+  '/stock-ledger',
+  '/stock-adjustment',
   '/users',
-  '/settings',
-  '/categories',
+  '/setting',
 ];
 
 // AppShell
@@ -31,7 +33,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     const restricted = ADMIN_ONLY_ROUTES.some(
       (route) => pathname === route || pathname.startsWith(`${route}/`),
     );
-    if (restricted) void navigate('/', { replace: true });
+    if (restricted) {
+      void navigate(getAuthenticatedHomePath(currentUser), { replace: true });
+    }
   }, [currentUser, pathname, navigate]);
 
   // Initialize the saved color theme.

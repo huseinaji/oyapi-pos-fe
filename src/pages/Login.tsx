@@ -5,7 +5,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ShoppingCart, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { ApiError } from '@/lib/api';
-import { useLoginMutation } from '@/lib/auth/auth-store';
+import {
+  getAuthenticatedHomePath,
+  useLoginMutation,
+} from '@/lib/auth/auth-store';
 import { Card, CardContent } from '@/components/ui/card';
 import { Field, FieldContent, FieldLabel } from '@/components/ui/field';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -48,15 +51,13 @@ export default function Login() {
   const onSubmit = async (data: LoginData) => {
     setError('');
     try {
-      await loginMutation.mutateAsync({
+      const user = await loginMutation.mutateAsync({
         usernameOrEmail: data.usernameOrEmail,
         password: data.password,
         rememberMe: data.rememberMe ?? false,
       });
 
-      navigate('/', {
-        replace: true,
-      });
+      navigate(getAuthenticatedHomePath(user), { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.statusCode === 401) {
         setError('Invalid email or password.');
@@ -140,10 +141,11 @@ export default function Login() {
                         placeholder="you@example.com or admin"
                         autoComplete="username"
                         suppressHydrationWarning
-                        className={`w-full rounded-[12px] border bg-[var(--surface-muted)] py-3 pl-10 pr-4 text-sm outline-none transition focus:ring-2 ${errors.usernameOrEmail
-                          ? 'border-[var(--status-danger)] focus:border-[var(--status-danger)] focus:ring-[var(--status-danger)]/15'
-                          : 'border-[var(--border)] focus:border-[var(--accent)] focus:ring-[var(--accent)]/15'
-                          }`}
+                        className={`w-full rounded-[12px] border bg-[var(--surface-muted)] py-3 pl-10 pr-4 text-sm outline-none transition focus:ring-2 ${
+                          errors.usernameOrEmail
+                            ? 'border-[var(--status-danger)] focus:border-[var(--status-danger)] focus:ring-[var(--status-danger)]/15'
+                            : 'border-[var(--border)] focus:border-[var(--accent)] focus:ring-[var(--accent)]/15'
+                        }`}
                       />
                     </div>
 
@@ -189,10 +191,11 @@ export default function Login() {
                         placeholder="••••••••"
                         autoComplete="current-password"
                         suppressHydrationWarning
-                        className={`w-full rounded-[12px] border bg-[var(--surface-muted)] py-3 pl-10 pr-10 text-sm outline-none transition focus:ring-2 ${errors.password
-                          ? 'border-[var(--status-danger)] focus:border-[var(--status-danger)] focus:ring-[var(--status-danger)]/15'
-                          : 'border-[var(--border)] focus:border-[var(--accent)] focus:ring-[var(--accent)]/15'
-                          }`}
+                        className={`w-full rounded-[12px] border bg-[var(--surface-muted)] py-3 pl-10 pr-10 text-sm outline-none transition focus:ring-2 ${
+                          errors.password
+                            ? 'border-[var(--status-danger)] focus:border-[var(--status-danger)] focus:ring-[var(--status-danger)]/15'
+                            : 'border-[var(--border)] focus:border-[var(--accent)] focus:ring-[var(--accent)]/15'
+                        }`}
                       />
 
                       <Button

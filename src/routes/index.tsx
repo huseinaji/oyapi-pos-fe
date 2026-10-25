@@ -14,7 +14,11 @@ import StockLedgerPage from '@/pages/stock-ledger/stock-ledger';
 import StockAdjustmentPage from '@/pages/stock-adjustment';
 import ItemCategoriesPage from '@/pages/item-categories';
 import CashierSessionsPage from '@/pages/cashier-sessions';
-import { useAuthStore, useMeQuery } from '@/lib/auth/auth-store';
+import {
+  getAuthenticatedHomePath,
+  useAuthStore,
+  useMeQuery,
+} from '@/lib/auth/auth-store';
 import { useEffect, type FC } from 'react';
 import { Navigate, Route, Routes } from 'react-router';
 import Home from '../pages/dashboard';
@@ -47,6 +51,17 @@ function RequireAuth({
   return <>{children}</>;
 }
 
+function AuthenticatedHome() {
+  const { data: currentUser } = useMeQuery();
+
+  if (!currentUser) return null;
+
+  const homePath = getAuthenticatedHomePath(currentUser);
+  if (homePath !== '/') return <Navigate to={homePath} replace />;
+
+  return <Home />;
+}
+
 export const RoutesIndex: FC = () => {
   return (
     <Routes>
@@ -71,18 +86,33 @@ export const RoutesIndex: FC = () => {
           <RequireAuth requireStore>
             <AppShell>
               <Routes>
-                <Route path="/" element={<Home />} />
+                <Route path="/" element={<AuthenticatedHome />} />
                 <Route path="/pos" element={<PosPage />} />
-                <Route path="/cashier-sessions" element={<CashierSessionsPage />} />
+                <Route
+                  path="/cashier-sessions"
+                  element={<CashierSessionsPage />}
+                />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/products/:id" element={<ProductDetailPage />} />
-                <Route path="/item-categories" element={<ItemCategoriesPage />} />
+                <Route
+                  path="/item-categories"
+                  element={<ItemCategoriesPage />}
+                />
                 <Route path="/stock-ledger" element={<StockLedgerPage />} />
-                <Route path="/stock-adjustment" element={<StockAdjustmentPage />} />
+                <Route
+                  path="/stock-adjustment"
+                  element={<StockAdjustmentPage />}
+                />
                 <Route path="/users" element={<UsersPage />} />
                 <Route path="/transactions" element={<TransactionsPage />} />
-                <Route path="/transactions/:id" element={<TransactionDetailPage />} />
-                <Route path="/transactions/print/:id" element={<TransactionPrintPage />} />
+                <Route
+                  path="/transactions/:id"
+                  element={<TransactionDetailPage />}
+                />
+                <Route
+                  path="/transactions/print/:id"
+                  element={<TransactionPrintPage />}
+                />
                 <Route path="/setting" element={<SettingsPage />} />
               </Routes>
             </AppShell>
@@ -90,5 +120,5 @@ export const RoutesIndex: FC = () => {
         }
       />
     </Routes>
-  )
-}
+  );
+};

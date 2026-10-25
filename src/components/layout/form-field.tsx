@@ -7,20 +7,24 @@ import {
 
 export function FormField({
   label,
+  htmlFor,
   description,
   required,
   error,
+  className,
   children,
 }: {
   label: string;
+  htmlFor?: string;
   description?: string;
   required?: boolean;
   error?: string;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <Field>
-      <FieldLabel>
+    <Field className={className}>
+      <FieldLabel htmlFor={htmlFor}>
         {label}
         {required && <span className="text-[var(--status-danger)]"> *</span>}
       </FieldLabel>

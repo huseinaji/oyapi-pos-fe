@@ -79,6 +79,7 @@ export const navItems: NavItem[] = [
         href: '/',
         label: 'Dashboard',
         icon: 'LayoutGrid',
+        roles: ['ADMIN'],
       },
     ],
   },
@@ -89,11 +90,13 @@ export const navItems: NavItem[] = [
         href: '/products',
         label: 'Items',
         icon: 'Package2',
+        roles: ['ADMIN'],
       },
       {
         href: '/item-categories',
         label: 'Item Categories',
         icon: 'Tags',
+        roles: ['ADMIN'],
       },
       {
         href: '/stock-ledger',

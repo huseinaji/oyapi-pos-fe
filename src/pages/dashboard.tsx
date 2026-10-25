@@ -480,14 +480,6 @@ export default function Home() {
               ? 'Sales data unavailable'
               : `${getPeriodLabel(period)} · ${filteredComplete.length} completed sales`
         }
-        action={
-          <Link to="/pos">
-            <AppButton variant="inverted">
-              <ShoppingCart size={14} />
-              <span className="ml-2">New sale</span>
-            </AppButton>
-          </Link>
-        }
       />
 
       {/* Period filter */}

@@ -37,7 +37,7 @@ import {
 import {
   countActiveFilters,
   daysAgoIso,
-  defaultTransactionFilters,
+  createDefaultTransactionFilters,
   filterTransactions,
   formatRp,
   getUniqueValues,
@@ -48,6 +48,8 @@ import {
 
 import type { Transaction } from '@/lib/transaction/transaction-types';
 import { Link } from 'react-router';
+import { useMeQuery } from '@/lib/auth/auth-store';
+import { useCashierSessionsQuery } from '@/lib/cashier-sessions/cashier-sessions-store';
 import {
   useCompleteTransactionMutation,
   useDeleteTransactionMutation,
@@ -65,6 +67,13 @@ const datePresets: { id: DatePreset; label: string }[] = [
 ];
 
 export default function TransactionsPage() {
+  const { data: currentUser } = useMeQuery();
+  const cashierSessionsQuery = useCashierSessionsQuery(
+    currentUser?.store?.storeId,
+  );
+  const hasActivePosSession = Boolean(
+    cashierSessionsQuery.data?.some((session) => session.status === 'OPEN'),
+  );
   const transactionsQuery = useTransactionsQuery();
   const deleteTransactionMutation = useDeleteTransactionMutation();
   const completeTransactionMutation = useCompleteTransactionMutation();
@@ -72,9 +81,9 @@ export default function TransactionsPage() {
   const navigate = useNavigate();
 
   const [filters, setFilters] = useState<TransactionFilters>(
-    defaultTransactionFilters,
+    createDefaultTransactionFilters,
   );
-  const [datePreset, setDatePreset] = useState<DatePreset>('all');
+  const [datePreset, setDatePreset] = useState<DatePreset>('today');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingTx, setDeletingTx] = useState<Transaction | null>(null);
@@ -155,8 +164,8 @@ export default function TransactionsPage() {
   };
 
   const clearFilters = () => {
-    setFilters(defaultTransactionFilters);
-    setDatePreset('all');
+    setFilters(createDefaultTransactionFilters());
+    setDatePreset('today');
     resetPage();
   };
 
@@ -421,12 +430,14 @@ export default function TransactionsPage() {
         title="Transactions"
         description={`${summary.count} orders · ${formatRp(summary.total)} revenue`}
         action={
-          <Link to="/pos">
-            <AppButton variant="inverted">
-              <ReceiptText size={14} />
-              <span className="ml-2">New sale</span>
-            </AppButton>
-          </Link>
+          hasActivePosSession && !cashierSessionsQuery.isError ? (
+            <Link to="/pos">
+              <AppButton variant="inverted">
+                <ReceiptText size={14} />
+                <span className="ml-2">New sale</span>
+              </AppButton>
+            </Link>
+          ) : undefined
         }
       />
 
@@ -496,6 +507,8 @@ export default function TransactionsPage() {
                   {datePresets.map((preset) => (
                     <button
                       key={preset.id}
+                      type="button"
+                      aria-pressed={datePreset === preset.id}
                       onClick={() => applyDatePreset(preset.id)}
                       className={`rounded-full px-3 py-1.5 text-xs font-medium transition active:scale-95 ${
                         datePreset === preset.id

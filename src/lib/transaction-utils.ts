@@ -27,21 +27,35 @@ export function endOfDay(date: Date) {
 }
 
 export function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return localDateIso(new Date());
 }
 
 export function daysAgoIso(days: number) {
   const date = new Date();
   date.setDate(date.getDate() - days);
-  return date.toISOString().slice(0, 10);
+  return localDateIso(date);
+}
+
+function localDateIso(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseLocalDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
 }
 
 export function filterTransactions(
   transactions: Transaction[],
   filters: TransactionFilters,
 ): Transaction[] {
-  const from = filters.dateFrom ? startOfDay(new Date(filters.dateFrom)) : null;
-  const to = filters.dateTo ? endOfDay(new Date(filters.dateTo)) : null;
+  const from = filters.dateFrom
+    ? startOfDay(parseLocalDate(filters.dateFrom))
+    : null;
+  const to = filters.dateTo ? endOfDay(parseLocalDate(filters.dateTo)) : null;
 
   return transactions
     .filter((transaction) => {
@@ -98,15 +112,18 @@ export function countActiveFilters(filters: TransactionFilters) {
   return count;
 }
 
-export const defaultTransactionFilters: TransactionFilters = {
-  query: '',
-  dateFrom: '',
-  dateTo: '',
-  customer: 'all',
-  cashier: 'all',
-  status: 'all',
-  payment: 'all',
-};
+export function createDefaultTransactionFilters(): TransactionFilters {
+  const today = todayIso();
+  return {
+    query: '',
+    dateFrom: today,
+    dateTo: today,
+    customer: 'all',
+    cashier: 'all',
+    status: 'all',
+    payment: 'all',
+  };
+}
 
 export const statusStyles: Record<Transaction['status'], string> = {
   complete: 'bg-[var(--surface-accent)] text-[var(--status-success)]',

@@ -73,6 +73,7 @@ const itemSchema = z
   .object({
     name: z.string().trim().min(1, 'Item name is required.'),
     imageUrl: z.string().optional(),
+    description: z.string(),
     type: z.string().min(1, 'Item type is required.'),
     categoryId: z.string().optional(),
     uom: z.string().min(1, 'Unit of measure is required.'),
@@ -114,6 +115,7 @@ type ItemForm = z.infer<typeof itemSchema>;
 const emptyForm: ItemForm = {
   name: '',
   imageUrl: '',
+  description: '',
   type: ITEM_TYPE_OPTIONS[0],
   categoryId: '',
   uom: ITEM_UOM_OPTIONS[0],
@@ -140,6 +142,7 @@ function itemToForm(item: ApiItem): ItemForm {
   return {
     name: item.name,
     imageUrl: item.imageUrl ?? '',
+    description: item.description ?? '',
     type: item.type ?? ITEM_TYPE_OPTIONS[0],
     categoryId: item.categoryId ?? '',
     uom: item.uom,
@@ -157,6 +160,7 @@ function formToDto(form: ItemForm): CreateItemDto {
   return {
     name: form.name.trim(),
     ...(form.imageUrl?.trim() ? { imageUrl: form.imageUrl.trim() } : {}),
+    description: form.description.trim(),
     type: form.type.trim(),
     ...(form.categoryId ? { categoryId: form.categoryId } : {}),
     uom: form.uom.trim(),
@@ -819,13 +823,29 @@ export default function ProductsPage() {
         >
           <FormField
             label="Item name"
+            htmlFor="item-name"
             required
             error={formErrors.name?.message}
           >
             <input
+              id="item-name"
               {...register('name')}
               placeholder="e.g. Caffè Latte"
               className={inputClass(!!formErrors.name)}
+            />
+          </FormField>
+
+          <FormField
+            label="Description"
+            htmlFor="item-description"
+            className="sm:col-span-2"
+          >
+            <textarea
+              id="item-description"
+              {...register('description')}
+              rows={3}
+              placeholder="Add details about this item"
+              className={`${inputClass(false)} min-h-24 resize-y`}
             />
           </FormField>
 

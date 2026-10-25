@@ -341,7 +341,7 @@ function ProductCard({
   return (
     <Card
       noPadding
-      className={`overflow-hidden transition-all ${
+      className={`h-full overflow-hidden transition-all ${
         isHighlighted
           ? 'ring-2 ring-[var(--accent-strong)] ring-offset-1'
           : isOutOfStock
@@ -366,7 +366,7 @@ function ProductCard({
         )}
       </div>
 
-      <CardContent className="px-3 pt-2.5 pb-2">
+      <CardContent className="flex-1 px-3 pt-2.5 pb-2">
         <p className="truncate text-sm font-semibold leading-snug">
           {product.name}
         </p>
@@ -387,7 +387,7 @@ function ProductCard({
         </div>
       </CardContent>
 
-      <CardFooter className="border-t-0 bg-transparent p-0">
+      <CardFooter className="mt-auto border-t-0 bg-transparent p-0">
         <button
           ref={buttonRef}
           type="button"

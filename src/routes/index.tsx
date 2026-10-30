@@ -1,6 +1,8 @@
 import { AppShell } from '@/components/layout/app-shell';
 import ForgotPasswordPage from '@/pages/forgot-password';
 import Login from '@/pages/Login';
+import SignupPage from '@/pages/signup';
+import CreateStorePage from '@/pages/create-store';
 import PosPage from '@/pages/pos';
 import ProductsPage from '@/pages/items/items-page';
 import ProductDetailPage from '@/pages/product-detail';
@@ -68,6 +70,7 @@ export const RoutesIndex: FC = () => {
       {/* Public — no shell */}
       <Route path="/login" element={<Login />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/auth/signup" element={<SignupPage />} />
 
       {/* Authenticated but no store selected yet — no shell */}
       <Route
@@ -75,6 +78,14 @@ export const RoutesIndex: FC = () => {
         element={
           <RequireAuth>
             <SelectStorePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/create-store"
+        element={
+          <RequireAuth>
+            <CreateStorePage />
           </RequireAuth>
         }
       />

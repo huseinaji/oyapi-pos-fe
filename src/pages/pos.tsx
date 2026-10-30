@@ -1049,6 +1049,9 @@ function CartPanel(props: CheckoutProps) {
 function CartDrawer(props: CheckoutProps) {
   const checkout = useCheckout(props);
   const [open, setOpen] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const dragStartRef = useRef<{ y: number; time: number } | null>(null);
+  const skipToggleRef = useRef(false);
   const { cartQty, total } = checkout;
 
   // Auto-close when cart empties
@@ -1062,29 +1065,75 @@ function CartDrawer(props: CheckoutProps) {
   return (
     <>
       {/* Backdrop */}
-      {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm xl:hidden"
-          onClick={() => setOpen(false)}
-        />
-      )}
+      <div
+        aria-hidden="true"
+        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-200 ease-out motion-reduce:transition-none xl:hidden ${
+          open
+            ? 'pointer-events-auto opacity-100'
+            : 'pointer-events-none opacity-0'
+        }`}
+        onClick={() => setOpen(false)}
+      />
 
       {/* Drawer */}
       <div
-        className={`fixed inset-x-0 bottom-0 z-50 flex flex-col xl:hidden`}
+        data-testid="current-order-drawer"
+        className="fixed inset-x-0 bottom-0 z-50 flex flex-col overflow-hidden transition-[height,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none xl:hidden"
         style={{
           maxHeight: '90dvh',
-          ...(open ? { height: 'min(90dvh, calc(100dvh - 1rem))' } : {}),
+          height: open ? 'min(90dvh, calc(100dvh - 1rem))' : '4.5rem',
+          transform: `translateY(${dragOffset}px)`,
+          transitionDuration: dragStartRef.current ? '0ms' : undefined,
         }}
       >
         {/* Collapsed bar — always visible when cart has items */}
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-center gap-3 rounded-t-[20px] border border-b-0 border-[var(--border)] bg-[var(--band-bg)] px-4 py-3 text-left shadow-[0_-4px_24px_rgba(0,0,0,0.18)]"
+          onClick={() => {
+            if (skipToggleRef.current) {
+              skipToggleRef.current = false;
+              return;
+            }
+            setOpen((value) => !value);
+          }}
+          onPointerDown={(event) => {
+            if (!open || !event.isPrimary) return;
+            dragStartRef.current = {
+              y: event.clientY,
+              time: performance.now(),
+            };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            if (!dragStartRef.current) return;
+            setDragOffset(Math.max(0, event.clientY - dragStartRef.current.y));
+          }}
+          onPointerUp={(event) => {
+            const start = dragStartRef.current;
+            if (!start) return;
+
+            const distance = Math.max(0, event.clientY - start.y);
+            const elapsed = Math.max(1, performance.now() - start.time);
+            const shouldClose =
+              distance > 96 || (distance > 30 && distance / elapsed > 0.55);
+            dragStartRef.current = null;
+            setDragOffset(0);
+
+            if (distance > 8) {
+              skipToggleRef.current = true;
+              if (shouldClose) setOpen(false);
+            }
+          }}
+          onPointerCancel={() => {
+            dragStartRef.current = null;
+            setDragOffset(0);
+          }}
+          className="relative z-10 flex w-full shrink-0 touch-none items-center gap-3 rounded-t-[20px] border border-b-0 border-[var(--border)] bg-[var(--band-bg)] px-4 pt-5 pb-3 text-left shadow-[0_-4px_24px_rgba(0,0,0,0.18)]"
         >
-          {/* Drag handle */}
-          {/* <span className="absolute left-1/2 top-2 h-1 w-10 -translate-x-1/2 rounded-full bg-white/20" /> */}
+          <span
+            aria-hidden="true"
+            className="absolute top-2 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-white/35"
+          />
 
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white/10 text-white">
             <ShoppingBag size={17} />
@@ -1099,8 +1148,10 @@ function CartDrawer(props: CheckoutProps) {
                 {cartQty}
               </span>
             </span>
-            <span className="block text-[11px] text-white/60">
-              Tap to {open ? 'collapse' : 'checkout'}
+            <span className="block text-[11px] text-white/70">
+              {open
+                ? 'Tap to collapse · drag down to close'
+                : 'Tap to checkout'}
             </span>
           </span>
 
@@ -1119,11 +1170,18 @@ function CartDrawer(props: CheckoutProps) {
         </button>
 
         {/* Expanded content */}
-        {open && (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-x border-[var(--border)] bg-[var(--card)]">
-            <CartContent checkout={checkout} products={props.products} />
-          </div>
-        )}
+        <div
+          data-testid="current-order-content"
+          aria-hidden={!open}
+          inert={!open}
+          className={`flex min-h-0 flex-col overflow-hidden border-x border-[var(--border)] bg-[var(--card)] transition-[flex-grow,opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
+            open
+              ? 'flex-1 translate-y-0 opacity-100'
+              : 'flex-none translate-y-2 opacity-0'
+          }`}
+        >
+          <CartContent checkout={checkout} products={props.products} />
+        </div>
       </div>
     </>
   );

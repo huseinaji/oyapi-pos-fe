@@ -26,9 +26,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const theme = useUIStore((state) => state.theme);
   const initializeTheme = useUIStore((state) => state.initializeTheme);
 
-  // Route guard — redirect non-ADMIN away from admin-only pages
+  // Route guard — admin-only pages require the active store's admin role.
   useEffect(() => {
-    if (!currentUser || currentUser.role === 'ADMIN') return;
+    if (!currentUser || currentUser.store?.role === 'admin') return;
 
     const restricted = ADMIN_ONLY_ROUTES.some(
       (route) => pathname === route || pathname.startsWith(`${route}/`),

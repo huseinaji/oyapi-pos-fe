@@ -9,7 +9,7 @@ export type AuthUser = AuthMeUser;
 
 export function getAuthenticatedHomePath(user: AuthUser): string {
   if (!user.store) return '/select-store';
-  return user.role === 'ADMIN' ? '/' : '/cashier-sessions';
+  return user.store.role === 'admin' ? '/' : '/cashier-sessions';
 }
 
 type AuthState = {

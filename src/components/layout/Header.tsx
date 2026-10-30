@@ -286,16 +286,16 @@ export default function Header({ currentUser, isDark, theme }: HeaderProps) {
                       </p>
                     </div>
                   </div>
-                  <div className="space-y-1 border-b border-[var(--border)] p-2">
-                    <Link
-                      to="/setting"
-                      onClick={() => setHeaderPanel(null)}
-                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition hover:bg-[var(--surface-muted)]"
-                    >
-                      <Settings size={17} className="text-[var(--muted)]" />
-                      <span>Settings</span>
-                    </Link>
-                    {currentUser.role === 'ADMIN' && (
+                  {currentUser.store?.role === 'admin' && (
+                    <div className="space-y-1 border-b border-[var(--border)]">
+                      <Link
+                        to="/setting"
+                        onClick={() => setHeaderPanel(null)}
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition hover:bg-[var(--surface-muted)]"
+                      >
+                        <Settings size={17} className="text-[var(--muted)]" />
+                        <span>Settings</span>
+                      </Link>
                       <Link
                         to="/users"
                         onClick={() => setHeaderPanel(null)}
@@ -304,8 +304,8 @@ export default function Header({ currentUser, isDark, theme }: HeaderProps) {
                         <Users size={17} className="text-[var(--muted)]" />
                         <span>Manage team</span>
                       </Link>
-                    )}
-                  </div>
+                    </div>
+                  )}
                   <div className="p-2">
                     <button
                       type="button"

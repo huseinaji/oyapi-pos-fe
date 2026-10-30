@@ -258,7 +258,9 @@ function visibleNavGroups(groups: NavItem[], currentUser: AuthUser | null) {
       items: group.items.filter(
         (item) =>
           !item.roles ||
-          Boolean(currentUser && item.roles.includes(currentUser.role)),
+          Boolean(
+            currentUser?.store && item.roles.includes(currentUser.store.role),
+          ),
       ),
     }))
     .filter((group) => group.items.length > 0);

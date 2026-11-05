@@ -11,6 +11,7 @@ type ItemsPaginationProps = {
   pagination: PaginationState;
   totalItems: number;
   onPageChange: (pageIndex: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 };
 
 export function ItemsPagination({
@@ -19,15 +20,17 @@ export function ItemsPagination({
   pagination,
   totalItems,
   onPageChange,
+  onPageSizeChange,
 }: ItemsPaginationProps) {
   return (
-    <div className="mt-3 border-t border-[var(--border)] px-3 md:px-4">
+    <div className="px-3 md:px-4">
       <div className="hidden md:block">
         <TablePagination
           table={desktopTable}
           pagination={pagination}
           totalItems={totalItems}
           onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
         />
       </div>
       <div className="md:hidden">
@@ -36,6 +39,7 @@ export function ItemsPagination({
           pagination={pagination}
           totalItems={totalItems}
           onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
         />
       </div>
     </div>

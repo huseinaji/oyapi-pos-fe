@@ -56,6 +56,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   useCreateProductMutation,
   useDeleteProductMutation,
+  useProductsPageQuery,
   useProductsQuery,
   useUpdateProductMutation,
 } from '@/lib/product/product-store';
@@ -200,7 +201,21 @@ function extractApiError(err: unknown): string {
 
 export default function ProductsPage() {
   const navigate = useNavigate();
-  const productsQuery = useProductsQuery();
+  const [query, setQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const productsQuery = useProductsPageQuery(
+    pagination.pageIndex + 1,
+    pagination.pageSize,
+    {
+      ...(query.trim() ? { name: query.trim() } : {}),
+      ...(selectedCategory !== 'All' ? { categoryId: selectedCategory } : {}),
+    },
+  );
+  const componentItemsQuery = useProductsQuery({ type: 'raw_material' });
   const categoriesQuery = useItemCategoriesQuery();
   const createProductMutation = useCreateProductMutation();
   const updateProductMutation = useUpdateProductMutation();
@@ -208,14 +223,12 @@ export default function ProductsPage() {
   const items = productsQuery.data?.rows ?? [];
   const categories = categoriesQuery.data?.rows ?? [];
   const rawMaterialItems = useMemo(
-    () => items.filter((item) => item.type === 'raw_material'),
-    [items],
+    () => componentItemsQuery.data?.rows ?? [],
+    [componentItemsQuery.data?.rows],
   );
   const isLoading = productsQuery.isLoading;
   const storeError = productsQuery.isError ? 'Failed to load items' : null;
 
-  const [query, setQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
   const [formOpen, setFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -223,10 +236,6 @@ export default function ProductsPage() {
   const [detailItem, setDetailItem] = useState<ApiItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [formApiError, setFormApiError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
-  });
   const {
     register,
     control,
@@ -294,38 +303,17 @@ export default function ProductsPage() {
     categories.find((category) => category.id === item.categoryId)?.name ??
     'Uncategorized';
 
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      const matchesQuery = item.name
-        .toLowerCase()
-        .includes(query.toLowerCase());
-      const matchesCategory =
-        selectedCategory === 'All' || item.categoryId === selectedCategory;
-      return matchesQuery && matchesCategory;
-    });
-  }, [items, query, selectedCategory]);
-
   const pageSize = pagination.pageSize;
   const resetPage = () =>
     setPagination((current) => ({ ...current, pageIndex: 0 }));
-  const paginatedItems = useMemo(
-    () =>
-      filteredItems.slice(
-        pagination.pageIndex * pageSize,
-        (pagination.pageIndex + 1) * pageSize,
-      ),
-    [filteredItems, pageSize, pagination.pageIndex],
-  );
+  const totalItems = productsQuery.data?.count ?? 0;
   useEffect(() => {
-    const lastPageIndex = Math.max(
-      0,
-      Math.ceil(filteredItems.length / pageSize) - 1,
-    );
-
+    if (!productsQuery.data) return;
+    const lastPageIndex = Math.max(0, Math.ceil(totalItems / pageSize) - 1);
     if (pagination.pageIndex > lastPageIndex) {
       setPagination((current) => ({ ...current, pageIndex: lastPageIndex }));
     }
-  }, [filteredItems.length, pageSize, pagination.pageIndex]);
+  }, [pageSize, pagination.pageIndex, productsQuery.data, totalItems]);
 
   // ---------------------------------------------------------------------------
   // Dialog helpers
@@ -453,16 +441,6 @@ export default function ProductsPage() {
   const desktopColumns = useMemo<ColumnDef<ApiItem>[]>(
     () => [
       {
-        id: 'number',
-        enableSorting: false,
-        header: () => <span className="block text-center">No.</span>,
-        cell: ({ row }) => (
-          <div className="text-center text-[var(--muted)]">
-            {pagination.pageIndex * pageSize + row.index + 1}
-          </div>
-        ),
-      },
-      {
         accessorKey: 'name',
         header: 'Name',
         enableSorting: false,
@@ -564,16 +542,6 @@ export default function ProductsPage() {
   const mobileColumns = useMemo<ColumnDef<ApiItem>[]>(
     () => [
       {
-        id: 'number',
-        enableSorting: false,
-        header: () => <span className="block text-center">No.</span>,
-        cell: ({ row }) => (
-          <div className="text-center text-xs text-[var(--muted)]">
-            {pagination.pageIndex * pageSize + row.index + 1}
-          </div>
-        ),
-      },
-      {
         accessorKey: 'name',
         header: 'Product',
         enableSorting: false,
@@ -601,46 +569,6 @@ export default function ProductsPage() {
           </div>
         ),
       },
-      {
-        id: 'actions',
-        enableSorting: false,
-        header: '',
-        cell: ({ row }) => (
-          <div
-            className="text-right"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <RowActions
-              label={`Actions for ${row.original.name}`}
-              actions={[
-                {
-                  label: 'Edit',
-                  icon: PencilLine,
-                  onClick: () => void openEdit(row.original),
-                },
-                {
-                  label:
-                    row.original.status?.toLowerCase() === 'inactive'
-                      ? 'Enable'
-                      : 'Disable',
-                  icon:
-                    row.original.status?.toLowerCase() === 'inactive'
-                      ? Eye
-                      : EyeOff,
-                  disabled: updateProductMutation.isPending,
-                  onClick: () => void handleToggleItemStatus(row.original),
-                },
-                {
-                  label: 'Delete',
-                  icon: Trash2,
-                  danger: true,
-                  onClick: () => openDeleteConfirm(row.original),
-                },
-              ]}
-            />
-          </div>
-        ),
-      },
     ],
     [
       getCategoryName,
@@ -653,13 +581,13 @@ export default function ProductsPage() {
     ],
   );
   const desktopTable = useReactTable({
-    data: paginatedItems,
+    data: items,
     columns: desktopColumns,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (item) => item.id,
   });
   const mobileTable = useReactTable({
-    data: paginatedItems,
+    data: items,
     columns: mobileColumns,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (item) => item.id,
@@ -674,7 +602,7 @@ export default function ProductsPage() {
       <PageHeader
         eyebrow="Inventory"
         title="Items"
-        description={`${items.length} items in catalog`}
+        description={`${totalItems} items in catalog`}
         action={
           <div className="hidden md:block">
             <AppButton
@@ -761,7 +689,7 @@ export default function ProductsPage() {
 
         {!isLoading && !storeError && (
           <>
-            {filteredItems.length > 0 && (
+            {items.length > 0 && (
               <div>
                 <TransactionsTable
                   desktopTable={desktopTable}
@@ -773,15 +701,18 @@ export default function ProductsPage() {
                   desktopTable={desktopTable}
                   mobileTable={mobileTable}
                   pagination={pagination}
-                  totalItems={filteredItems.length}
+                  totalItems={totalItems}
                   onPageChange={(pageIndex) =>
                     setPagination((current) => ({ ...current, pageIndex }))
+                  }
+                  onPageSizeChange={(pageSize) =>
+                    setPagination({ pageIndex: 0, pageSize })
                   }
                 />
               </div>
             )}
 
-            {filteredItems.length === 0 && !isLoading && (
+            {items.length === 0 && !isLoading && (
               <div className="mt-6 flex flex-col items-center justify-center rounded-[12px] border border-dashed border-[var(--border)] p-8 text-center">
                 <PackageOpen className="mb-3 text-[var(--accent)]" size={28} />
                 <p className="font-medium">No items matched your search.</p>
@@ -970,7 +901,8 @@ export default function ProductsPage() {
                     clearErrors('itemComponents');
                   }}
                   disabled={
-                    rawMaterialItems.length === 0 || productsQuery.isLoading
+                    rawMaterialItems.length === 0 ||
+                    componentItemsQuery.isLoading
                   }
                 >
                   <Plus size={14} />
@@ -983,7 +915,7 @@ export default function ProductsPage() {
                   {formErrors.itemComponents.message}
                 </p>
               )}
-              {productsQuery.isError && (
+              {componentItemsQuery.isError && (
                 <p className="text-xs text-[var(--status-danger)]">
                   Unable to load items for the bundle. Try again after reloading
                   the catalog.
@@ -1040,7 +972,7 @@ export default function ProductsPage() {
                             }
                             onValueChange={field.onChange}
                             placeholder={
-                              productsQuery.isLoading
+                              componentItemsQuery.isLoading
                                 ? 'Loading items…'
                                 : componentOptions.length
                                   ? 'Select an item'
@@ -1048,7 +980,7 @@ export default function ProductsPage() {
                             }
                             options={componentOptions}
                             disabled={
-                              productsQuery.isLoading ||
+                              componentItemsQuery.isLoading ||
                               rawMaterialItems.length === 0
                             }
                             className={selectClass()}

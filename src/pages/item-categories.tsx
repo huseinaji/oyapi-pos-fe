@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Plus, RefreshCw, Tag, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { TablePagination } from '@/components/ui/table-pagination';
 import { AppButton } from '@/components/ui/app-button';
 import { AppDialog } from '@/components/ui/app-dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
@@ -9,7 +10,7 @@ import { SectionCard } from '@/components/ui/section-card';
 import {
   useCreateItemCategoryMutation,
   useDeleteItemCategoryMutation,
-  useItemCategoriesQuery,
+  useItemCategoriesPageQuery,
 } from '@/lib/product/item-categories-store';
 import type { StoreItemCategory } from '@/lib/product/product-types';
 import {
@@ -22,13 +23,36 @@ import {
 } from '@/components/ui/table';
 
 export default function ItemCategoriesPage() {
-  const categoriesQuery = useItemCategoriesQuery();
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const categoriesQuery = useItemCategoriesPageQuery(
+    pagination.pageIndex + 1,
+    pagination.pageSize,
+  );
   const createMutation = useCreateItemCategoryMutation();
   const deleteMutation = useDeleteItemCategoryMutation();
   const categories = categoriesQuery.data?.rows ?? [];
+  const totalCategories = categoriesQuery.data?.count ?? 0;
   const [createOpen, setCreateOpen] = useState(false);
   const [categoryName, setCategoryName] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState<StoreItemCategory | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<StoreItemCategory | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!categoriesQuery.data) return;
+    const lastPageIndex = Math.max(
+      0,
+      Math.ceil(totalCategories / pagination.pageSize) - 1,
+    );
+    if (pagination.pageIndex > lastPageIndex) {
+      setPagination((current) => ({ ...current, pageIndex: lastPageIndex }));
+    }
+  }, [
+    categoriesQuery.data,
+    pagination.pageIndex,
+    pagination.pageSize,
+    totalCategories,
+  ]);
+
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = categoryName.trim();
@@ -41,7 +65,8 @@ export default function ItemCategoriesPage() {
       toast.success('Item category created', { description: name });
     } catch (error) {
       toast.error('Unable to create item category', {
-        description: error instanceof Error ? error.message : 'Please try again.',
+        description:
+          error instanceof Error ? error.message : 'Please try again.',
       });
     }
   };
@@ -50,11 +75,14 @@ export default function ItemCategoriesPage() {
     if (!deleteTarget) return;
     try {
       await deleteMutation.mutateAsync(deleteTarget.id);
-      toast.success('Item category deleted', { description: deleteTarget.name });
+      toast.success('Item category deleted', {
+        description: deleteTarget.name,
+      });
       setDeleteTarget(null);
     } catch (error) {
       toast.error('Unable to delete item category', {
-        description: error instanceof Error ? error.message : 'Please try again.',
+        description:
+          error instanceof Error ? error.message : 'Please try again.',
       });
     }
   };
@@ -64,7 +92,7 @@ export default function ItemCategoriesPage() {
       <PageHeader
         eyebrow="Inventory"
         title="Item categories"
-        description={`${categories.length} categories`}
+        description={`${totalCategories} categories`}
         action={
           <AppButton variant="inverted" onClick={() => setCreateOpen(true)}>
             <Plus size={14} />
@@ -73,13 +101,23 @@ export default function ItemCategoriesPage() {
         }
       />
 
-      <SectionCard title="Categories" description="Manage the categories assigned to store items.">
+      <SectionCard
+        title="Categories"
+        description="Manage the categories assigned to store items."
+      >
         {categoriesQuery.isLoading ? (
-          <p className="py-8 text-center text-sm text-[var(--muted)]">Loading categories...</p>
+          <p className="py-8 text-center text-sm text-[var(--muted)]">
+            Loading categories...
+          </p>
         ) : categoriesQuery.isError ? (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <p className="text-sm text-[var(--status-danger)]">Unable to load item categories.</p>
-            <AppButton variant="secondary" onClick={() => void categoriesQuery.refetch()}>
+            <p className="text-sm text-[var(--status-danger)]">
+              Unable to load item categories.
+            </p>
+            <AppButton
+              variant="secondary"
+              onClick={() => void categoriesQuery.refetch()}
+            >
               <RefreshCw size={14} />
               <span className="ml-2">Retry</span>
             </AppButton>
@@ -130,6 +168,18 @@ export default function ItemCategoriesPage() {
             </Table>
           </div>
         )}
+        {totalCategories > 0 && (
+          <TablePagination
+            pagination={pagination}
+            totalItems={totalCategories}
+            onPageChange={(pageIndex) =>
+              setPagination((current) => ({ ...current, pageIndex }))
+            }
+            onPageSizeChange={(pageSize) =>
+              setPagination({ pageIndex: 0, pageSize })
+            }
+          />
+        )}
       </SectionCard>
 
       <AppDialog
@@ -139,8 +189,14 @@ export default function ItemCategoriesPage() {
         description="Add a category for items in this store."
         size="sm"
       >
-        <form className="space-y-4" onSubmit={(event) => void handleCreate(event)}>
-          <label className="block text-sm font-medium" htmlFor="item-category-name">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => void handleCreate(event)}
+        >
+          <label
+            className="block text-sm font-medium"
+            htmlFor="item-category-name"
+          >
             Category name
           </label>
           <input
@@ -154,10 +210,17 @@ export default function ItemCategoriesPage() {
             className="w-full rounded-[10px] border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
           />
           <div className="flex justify-end gap-2">
-            <AppButton type="button" variant="secondary" onClick={() => setCreateOpen(false)}>
+            <AppButton
+              type="button"
+              variant="secondary"
+              onClick={() => setCreateOpen(false)}
+            >
               Cancel
             </AppButton>
-            <AppButton type="submit" disabled={!categoryName.trim() || createMutation.isPending}>
+            <AppButton
+              type="submit"
+              disabled={!categoryName.trim() || createMutation.isPending}
+            >
               <Plus size={14} />
               <span className="ml-2">Create</span>
             </AppButton>

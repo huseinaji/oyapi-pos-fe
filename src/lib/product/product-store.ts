@@ -16,6 +16,14 @@ export const productQueryKeys = {
     [...productQueryKeys.all, 'sellable-items', storeId] as const,
   list: (storeId?: string, filters: ItemFilters = {}) =>
     [...productQueryKeys.all, 'list', storeId, filters] as const,
+  pages: (storeId?: string) =>
+    [...productQueryKeys.all, 'page', storeId] as const,
+  page: (
+    storeId: string | undefined,
+    page: number,
+    limit: number,
+    filters: ItemFilters,
+  ) => [...productQueryKeys.pages(storeId), page, limit, filters] as const,
   detail: (storeId: string | undefined, id: string) =>
     [...productQueryKeys.all, 'detail', storeId, id] as const,
 };
@@ -25,6 +33,19 @@ export function useProductsQuery(filters: ItemFilters = {}) {
   return useQuery({
     queryKey: productQueryKeys.list(storeId, filters),
     queryFn: () => productsApi.list(storeId!, filters),
+    enabled: Boolean(storeId),
+  });
+}
+
+export function useProductsPageQuery(
+  page: number,
+  limit: number,
+  filters: ItemFilters = {},
+) {
+  const storeId = useMeQuery().data?.store?.storeId;
+  return useQuery({
+    queryKey: productQueryKeys.page(storeId, page, limit, filters),
+    queryFn: () => productsApi.listPage(storeId!, page, limit, filters),
     enabled: Boolean(storeId),
   });
 }
@@ -53,6 +74,9 @@ export function useCreateProductMutation() {
         queryKey: productQueryKeys.list(storeId),
       });
       void queryClient.invalidateQueries({
+        queryKey: productQueryKeys.pages(storeId),
+      });
+      void queryClient.invalidateQueries({
         queryKey: productQueryKeys.sellableItems(storeId),
       });
     },
@@ -72,6 +96,9 @@ export function useUpdateProductMutation() {
       queryClient.setQueryData(productQueryKeys.detail(storeId, item.id), item);
       void queryClient.invalidateQueries({
         queryKey: productQueryKeys.list(storeId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: productQueryKeys.pages(storeId),
       });
       void queryClient.invalidateQueries({
         queryKey: productQueryKeys.sellableItems(storeId),
@@ -96,6 +123,9 @@ export function useDeleteProductMutation() {
       });
       void queryClient.invalidateQueries({
         queryKey: productQueryKeys.list(storeId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: productQueryKeys.pages(storeId),
       });
       void queryClient.invalidateQueries({
         queryKey: productQueryKeys.sellableItems(storeId),

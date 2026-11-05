@@ -5,7 +5,7 @@ export type PaginatedResponse<T> = {
 
 export async function fetchAllPages<T>(
   fetchPage: (page: number, limit: number) => Promise<PaginatedResponse<T>>,
-  limit = 100,
+  limit = 20,
 ): Promise<PaginatedResponse<T>> {
   const firstPage = await fetchPage(1, limit);
   const pageCount = Math.ceil(firstPage.count / limit);

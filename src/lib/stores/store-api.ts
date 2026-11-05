@@ -2,6 +2,7 @@ import { Api } from '@/lib/api/index';
 import type {
   ApiStore,
   CreateStoreDto,
+  DisableStoreMemberDto,
   MyStoreResponse,
   StoreMemberListResponse,
 } from './store-types';
@@ -27,6 +28,11 @@ export const StoreApi = {
     Api.post<void>(`/api/v1/store/${encodeURIComponent(storeId)}/assign`, {
       userId,
     }).then((response) => response.data),
+  disableMember: (storeId: string, body: DisableStoreMemberDto) =>
+    Api.post<void>(
+      `/api/v1/store/${encodeURIComponent(storeId)}/disable`,
+      body,
+    ).then((response) => response.data),
   create: (body: CreateStoreDto) =>
     Api.post<ApiStore>('/api/v1/store', body).then((m) => m.data),
 };

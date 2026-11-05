@@ -48,6 +48,26 @@ export function useAssignStoreMemberMutation(storeId: string | undefined) {
   });
 }
 
+export function useDisableStoreMemberMutation(storeId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userId: string) => {
+      if (!storeId) {
+        throw new Error('An active store is required to disable a member.');
+      }
+      return StoreApi.disableMember(storeId, { userId });
+    },
+    onSuccess: async () => {
+      if (storeId) {
+        await queryClient.invalidateQueries({
+          queryKey: storeMemberQueryKeys.list(storeId),
+        });
+      }
+    },
+  });
+}
+
 export function useSelectStoreMutation() {
   const queryClient = useQueryClient();
 

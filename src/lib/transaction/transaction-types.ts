@@ -98,10 +98,24 @@ export type SalesInvoiceFilters = {
   updatedBy?: string;
 };
 
+export type SalesInvoiceDateFilters =
+  | {
+      dateRange: 'today' | 'last30days';
+      timezone: string;
+      startDate?: never;
+      endDate?: never;
+    }
+  | {
+      dateRange: 'custom';
+      timezone: string;
+      startDate: string;
+      endDate: string;
+    };
+
 export type SalesInvoicePageParams = SalesInvoiceFilters & {
   page?: number;
   limit?: number;
-};
+} & Partial<SalesInvoiceDateFilters>;
 
 export type PaymentMethod = 'cash' | 'qris';
 

@@ -1,4 +1,6 @@
 import type { Transaction } from '@/lib/transaction/transaction-types';
+import { createElement, type ReactElement } from 'react';
+import { CheckCircle2, TimerIcon } from 'lucide-react';
 
 export type TransactionFilters = {
   query: string;
@@ -12,6 +14,19 @@ export type TransactionFilters = {
 
 export function formatRp(value: number) {
   return `Rp ${value.toLocaleString('id-ID')}`;
+}
+
+export function formatTransactionDate(
+  value: string,
+  options: Intl.DateTimeFormatOptions = {},
+) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return new Intl.DateTimeFormat('id-ID', { ...options, timeZone }).format(
+    date,
+  );
 }
 
 export function startOfDay(date: Date) {
@@ -125,7 +140,24 @@ export function createDefaultTransactionFilters(): TransactionFilters {
   };
 }
 
+// export const statusStyles: Record<Transaction['status'], string> = {
+//   complete: 'bg-[var(--surface-accent)] text-[var(--status-success)]',
+//   pending: 'bg-[var(--status-pending)]/15 text-[var(--status-pending)]',
+// };
 export const statusStyles: Record<Transaction['status'], string> = {
-  complete: 'bg-[var(--surface-accent)] text-[var(--status-success)]',
-  pending: 'bg-[var(--status-pending)]/15 text-[var(--status-pending)]',
+  complete: 'text-[var(--status-success)]',
+  pending: 'text-[var(--status-pending)]',
+};
+
+export const statusMobileIcon: Record<Transaction['status'], ReactElement> = {
+  complete: createElement(CheckCircle2, {
+    'aria-hidden': true,
+    size: 14,
+    strokeWidth: 2.25,
+  }),
+  pending: createElement(TimerIcon, {
+    'aria-hidden': true,
+    size: 14,
+    strokeWidth: 2.25,
+  }),
 };

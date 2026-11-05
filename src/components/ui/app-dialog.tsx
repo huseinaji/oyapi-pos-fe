@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 type AppDialogProps = {
   open: boolean;
@@ -33,6 +34,7 @@ export function AppDialog({
   const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const previousBodyOverflowRef = useRef('');
 
   // Keep a stable ref to onClose so the keyboard handler never becomes stale
   // but we don't re-register the listener every time the parent re-renders.
@@ -50,6 +52,7 @@ export function AppDialog({
       // Dialog just opened
       wasOpenRef.current = true;
       previousFocusRef.current = document.activeElement as HTMLElement;
+      previousBodyOverflowRef.current = document.body.style.overflow;
       document.body.style.overflow = 'hidden';
 
       // Focus first focusable child after paint
@@ -62,7 +65,7 @@ export function AppDialog({
     } else if (!open && wasOpenRef.current) {
       // Dialog just closed
       wasOpenRef.current = false;
-      document.body.style.overflow = '';
+      document.body.style.overflow = previousBodyOverflowRef.current;
       previousFocusRef.current?.focus();
       previousFocusRef.current = null;
     }
@@ -72,7 +75,7 @@ export function AppDialog({
   useEffect(() => {
     return () => {
       if (wasOpenRef.current) {
-        document.body.style.overflow = '';
+        document.body.style.overflow = previousBodyOverflowRef.current;
       }
     };
   }, []);
@@ -120,10 +123,10 @@ export function AppDialog({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open]); // only [open] — no onClose dependency
 
-  if (!open) return null;
+  if (!open || typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* Backdrop */}
       <button
         type="button"
@@ -170,6 +173,7 @@ export function AppDialog({
         {/* Body */}
         <div className="overflow-y-auto px-5 py-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

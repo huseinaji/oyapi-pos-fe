@@ -2,12 +2,7 @@ import type { ApiStoreRole, ApiUserRole, ApiUserStatus } from '@/types/api';
 
 export type StoreRole = ApiStoreRole;
 
-export type StoreMember = {
-  id: string;
-  storeId: string;
-  userId: string;
-  role: StoreRole;
-  isDefault: boolean | null;
+export type StoreMember = ApiStoreMember & {
   createdAt: string;
   updatedAt: string;
   user: {
@@ -50,6 +45,7 @@ export type ApiStoreMember = {
   role: StoreRole;
   storeId: string;
   userId: string;
+  status: 'active' | 'inactive';
 };
 
 /** GET /api/v1/store/my-store — paginated response */
@@ -61,6 +57,10 @@ export type MyStoreResponse = {
 export type StoreMemberListResponse = {
   count: number;
   rows: StoreMember[];
+};
+
+export type DisableStoreMemberDto = {
+  userId: string;
 };
 
 /** POST /api/v1/store — request body */

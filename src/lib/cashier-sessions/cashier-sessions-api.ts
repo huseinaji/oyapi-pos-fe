@@ -110,6 +110,21 @@ function mapSession(value: PosSessionResponse): CashierSession {
 }
 
 export const cashierSessionsApi = {
+  listPage: async (
+    storeId: string,
+    page: number,
+    limit: number,
+    filters: PosSessionFilters = {},
+  ) => {
+    const response = await Api.get<PaginatedResponse<PosSessionResponse>>(
+      sessionsPath(storeId),
+      { params: { ...filters, page, limit } },
+    );
+    return {
+      count: response.data.count,
+      rows: response.data.rows.map(mapSession),
+    };
+  },
   list: async (storeId: string, filters: PosSessionFilters = {}) => {
     const response = await fetchAllPages((page, limit) =>
       Api.get<PaginatedResponse<PosSessionResponse>>(sessionsPath(storeId), {

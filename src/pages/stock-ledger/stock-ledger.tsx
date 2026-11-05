@@ -191,19 +191,6 @@ export default function StockLedgerPage() {
         eyebrow="Inventory"
         title="Stock ledger"
         description="Chronological inventory movements and balance changes."
-        action={
-          <AppButton
-            variant="inverted"
-            onClick={() => void query.refetch()}
-            disabled={query.isFetching}
-          >
-            <RefreshCw
-              size={14}
-              className={query.isFetching ? 'animate-spin' : ''}
-            />
-            <span className="ml-2">Refresh</span>
-          </AppButton>
-        }
       />
       <SectionCard
         title="Stock Ledger"

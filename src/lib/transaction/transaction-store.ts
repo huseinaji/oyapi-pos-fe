@@ -1,6 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type {
   CreatePOSTransactionDto,
+  SalesInvoiceDateFilters,
   SalesInvoice,
   SalesInvoiceFilters,
 } from '@/lib/transaction/transaction-types';
@@ -8,11 +14,26 @@ import type { Transaction } from './transaction-types';
 import { productQueryKeys } from '@/lib/product/product-store';
 import { transactionsApi } from './transactions-api';
 import { useMeQuery } from '@/lib/auth/auth-store';
+import { formatTransactionDate } from '@/lib/transaction-utils';
 
 export const transactionQueryKeys = {
   all: ['transactions'] as const,
   list: (storeId?: string, filters: SalesInvoiceFilters = {}) =>
     [...transactionQueryKeys.all, 'list', storeId, filters] as const,
+  page: (
+    storeId: string | undefined,
+    page: number,
+    limit: number,
+    dateFilters: Partial<SalesInvoiceDateFilters>,
+  ) =>
+    [
+      ...transactionQueryKeys.all,
+      'page',
+      storeId,
+      page,
+      limit,
+      dateFilters,
+    ] as const,
   detail: (storeId: string | undefined, id: string) =>
     [...transactionQueryKeys.all, 'detail', storeId, id] as const,
 };
@@ -31,7 +52,7 @@ export const mapInvoice = (invoice: SalesInvoice): Transaction => ({
   tax: 0,
   total: invoice.totalAmount,
   cashier: invoice.creator?.username ?? 'System',
-  date: new Date(invoice.createdAt).toLocaleString('id-ID'),
+  date: formatTransactionDate(invoice.createdAt),
   recordedAt: invoice.createdAt,
   items: (invoice.salesInvoiceItems ?? []).map((item) => ({
     id: item.id,
@@ -58,6 +79,27 @@ export function useTransactionsQuery(filters: SalesInvoiceFilters = {}) {
   });
 }
 
+export function useTransactionsPageQuery(
+  page: number,
+  limit: number,
+  dateFilters: Partial<SalesInvoiceDateFilters> = {},
+) {
+  const storeId = useMeQuery().data?.store?.storeId;
+  return useQuery({
+    queryKey: transactionQueryKeys.page(storeId, page, limit, dateFilters),
+    queryFn: () =>
+      transactionsApi
+        .listPage(storeId!, { ...dateFilters, page, limit })
+        .then((response) => ({
+          count: response.count,
+          rows: response.rows.map(mapInvoice),
+        })),
+    enabled: Boolean(storeId),
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: true,
+  });
+}
+
 export function useRealtimeTransactionsQuery() {
   return useTransactionsQuery();
 }
@@ -77,11 +119,14 @@ export function useCreatePOSTransactionMutation() {
 
   return useMutation({
     mutationFn: (body: CreatePOSTransactionDto) => {
-      if (!storeId) throw new Error('Select a store before creating a transaction.');
+      if (!storeId)
+        throw new Error('Select a store before creating a transaction.');
       return transactionsApi.create(storeId, body);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: transactionQueryKeys.all });
+      void queryClient.invalidateQueries({
+        queryKey: transactionQueryKeys.all,
+      });
       void queryClient.invalidateQueries({ queryKey: productQueryKeys.all });
     },
   });
@@ -93,12 +138,17 @@ export function useCompleteTransactionMutation() {
 
   return useMutation({
     mutationFn: (id: string) => {
-      if (!storeId) throw new Error('Select a store before completing a transaction.');
+      if (!storeId)
+        throw new Error('Select a store before completing a transaction.');
       return transactionsApi.complete(storeId, id);
     },
     onSuccess: (_, id) => {
-      void queryClient.invalidateQueries({ queryKey: transactionQueryKeys.all });
-      void queryClient.invalidateQueries({ queryKey: transactionQueryKeys.detail(storeId, id) });
+      void queryClient.invalidateQueries({
+        queryKey: transactionQueryKeys.all,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: transactionQueryKeys.detail(storeId, id),
+      });
       void queryClient.invalidateQueries({ queryKey: productQueryKeys.all });
     },
   });
@@ -110,7 +160,8 @@ export function useDeleteTransactionMutation() {
 
   return useMutation({
     mutationFn: (id: string) => {
-      if (!storeId) throw new Error('Select a store before deleting a transaction.');
+      if (!storeId)
+        throw new Error('Select a store before deleting a transaction.');
       return transactionsApi.delete(storeId, id);
     },
     onSuccess: (_, id) => {
@@ -118,7 +169,9 @@ export function useDeleteTransactionMutation() {
         queryKey: transactionQueryKeys.detail(storeId, id),
         exact: true,
       });
-      void queryClient.invalidateQueries({ queryKey: transactionQueryKeys.all });
+      void queryClient.invalidateQueries({
+        queryKey: transactionQueryKeys.all,
+      });
     },
   });
 }

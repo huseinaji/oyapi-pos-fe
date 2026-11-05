@@ -19,7 +19,11 @@ import {
 } from '@/components/ui/drawer';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { Transaction } from '@/lib/transaction/transaction-types';
-import { formatRp, statusStyles } from '@/lib/transaction-utils';
+import {
+  formatRp,
+  formatTransactionDate,
+  statusStyles,
+} from '@/lib/transaction-utils';
 
 type TransactionDetailDrawerProps = {
   transaction: Transaction | null;
@@ -29,16 +33,6 @@ type TransactionDetailDrawerProps = {
   onPrintReceipt: (transaction: Transaction) => void;
   isCompleting: boolean;
 };
-
-function formatDate(transaction: Transaction) {
-  const date = new Date(transaction.recordedAt);
-  return Number.isNaN(date.getTime())
-    ? transaction.date || '—'
-    : new Intl.DateTimeFormat('id-ID', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(date);
-}
 
 export function TransactionDetailDrawer({
   transaction,
@@ -109,7 +103,12 @@ export function TransactionDetailDrawer({
                       <CreditCard size={14} />
                       {transaction.paymentMethod.toUpperCase()}
                     </span>
-                    <span>{formatDate(transaction)}</span>
+                    <span>
+                      {formatTransactionDate(transaction.recordedAt, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
+                    </span>
                   </div>
                 </div>
 
@@ -179,7 +178,10 @@ export function TransactionDetailDrawer({
                       Date
                     </dt>
                     <dd className="text-right text-sm font-medium text-[var(--foreground)]">
-                      {formatDate(transaction)}
+                      {formatTransactionDate(transaction.recordedAt, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })}
                     </dd>
                   </div>
                 </dl>
@@ -208,14 +210,6 @@ export function TransactionDetailDrawer({
                 >
                   <Printer size={14} />
                   <span className="ml-2">Print receipt</span>
-                </AppButton>
-              </div>
-              <div className="col-span-full w-full [&>button]:w-full [&>button]:justify-center md:col-span-1">
-                <AppButton
-                  variant="secondary"
-                  onClick={() => onOpenChange(false)}
-                >
-                  Close
                 </AppButton>
               </div>
             </DrawerFooter>

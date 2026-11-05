@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   RefreshCw,
   Search,
   ShieldCheck,
   UserCircle2,
+  UserRoundPlus,
   Users,
 } from 'lucide-react';
 import {
@@ -27,6 +29,7 @@ import { useAuthStore } from '@/lib/auth/auth-store';
 import { ApiError } from '@/lib/api';
 import {
   useAssignStoreMemberMutation,
+  useDisableStoreMemberMutation,
   useStoreMembersQuery,
 } from '@/lib/stores/store-store';
 import { usersApi } from '@/lib/user/users-api';
@@ -65,7 +68,9 @@ export default function UsersPage() {
   const storeId = currentUser?.store?.storeId;
   const membersQuery = useStoreMembersQuery(storeId);
   const assignMutation = useAssignStoreMemberMutation(storeId);
+  const disableMemberMutation = useDisableStoreMemberMutation(storeId);
   const members = membersQuery.data?.rows ?? [];
+  console.log(members);
 
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
@@ -75,6 +80,9 @@ export default function UsersPage() {
   const [isAssigning, setIsAssigning] = useState(false);
   const [detailMember, setDetailMember] = useState<StoreMember | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [membershipAction, setMembershipAction] = useState<
+    'disable' | 'enable' | null
+  >(null);
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'username', desc: false },
   ]);
@@ -157,6 +165,69 @@ export default function UsersPage() {
     }
   };
 
+  const handleDisableMember = async (member: StoreMember) => {
+    if (!isStoreAdmin || !storeId) {
+      toast.error('Unable to disable member', {
+        description: !storeId
+          ? 'Select an active store and try again.'
+          : 'Only an administrator of this store can disable members.',
+      });
+      return false;
+    }
+
+    try {
+      await disableMemberMutation.mutateAsync(member.userId);
+      toast.success('Member disabled', {
+        description: `${member.user.username} no longer has access to this store.`,
+      });
+      setDetailOpen(false);
+      return true;
+    } catch (error) {
+      toast.error('Unable to disable member', {
+        description: extractApiError(error),
+      });
+      return false;
+    }
+  };
+
+  const handleEnableMember = async (member: StoreMember) => {
+    if (!isStoreAdmin || !storeId) {
+      toast.error('Unable to enable member', {
+        description: !storeId
+          ? 'Select an active store and try again.'
+          : 'Only an administrator of this store can enable members.',
+      });
+      return false;
+    }
+
+    try {
+      await assignMutation.mutateAsync(member.userId);
+      toast.success('Member enabled', {
+        description: `${member.user.username} can access this store again.`,
+      });
+      setDetailOpen(false);
+      return true;
+    } catch (error) {
+      toast.error('Unable to enable member', {
+        description: extractApiError(error),
+      });
+      return false;
+    }
+  };
+
+  const handleConfirmMembershipAction = async () => {
+    if (!membershipAction || !detailMember) return;
+
+    const succeeded =
+      membershipAction === 'disable'
+        ? await handleDisableMember(detailMember)
+        : await handleEnableMember(detailMember);
+    if (succeeded) setMembershipAction(null);
+  };
+
+  const isUpdatingMember =
+    disableMemberMutation.isPending || assignMutation.isPending;
+
   const columns = useMemo<ColumnDef<StoreMember>[]>(
     () => [
       {
@@ -193,23 +264,23 @@ export default function UsersPage() {
         cell: ({ row }) => <RoleBadge role={row.original.role} />,
       },
       {
-        accessorFn: (member) => member.user.status,
+        accessorFn: (member) => member.status,
         id: 'status',
-        header: 'Account status',
-        cell: ({ row }) =>
-          row.original.user.status ? (
+        header: 'Member status',
+        cell: ({ row }) => {
+          const isActive = row.original.status === 'active';
+          return (
             <span
-              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                row.original.user.status === 'ACTIVE'
+              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs uppercase font-semibold ${
+                isActive
                   ? 'bg-[var(--surface-accent)] text-[var(--status-success)]'
                   : 'bg-[var(--surface-muted)] text-[var(--muted)]'
               }`}
             >
-              {row.original.user.status}
+              {row.original.status}
             </span>
-          ) : (
-            <span className="text-[var(--muted)]">—</span>
-          ),
+          );
+        },
       },
     ],
     [currentUser?.sub],
@@ -233,6 +304,15 @@ export default function UsersPage() {
             <p className="truncate text-[11px] text-[var(--muted)]">
               {row.original.user.email}
             </p>
+            <span
+              className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                row.original.status === 'active'
+                  ? 'bg-[var(--surface-accent)] text-[var(--status-success)]'
+                  : 'bg-[var(--surface-muted)] text-[var(--muted)]'
+              }`}
+            >
+              {row.original.status}
+            </span>
           </div>
         ),
       },
@@ -410,7 +490,74 @@ export default function UsersPage() {
         user={detailMember}
         open={detailOpen}
         onOpenChange={setDetailOpen}
+        canDisableMember={
+          isStoreAdmin && detailMember?.userId !== currentUser?.sub
+        }
+        isUpdatingMember={isUpdatingMember}
+        onRequestMembershipAction={setMembershipAction}
       />
+
+      <AppDialog
+        open={Boolean(membershipAction && detailMember)}
+        onClose={() => {
+          if (!isUpdatingMember) setMembershipAction(null);
+        }}
+        title={
+          membershipAction === 'disable'
+            ? 'Disable this member?'
+            : 'Enable this member?'
+        }
+        description={
+          membershipAction === 'disable'
+            ? `${detailMember?.user.username} will lose access to this store.`
+            : `${detailMember?.user.username} will regain access to this store.`
+        }
+        size="sm"
+      >
+        <div className="flex flex-col gap-5">
+          <div className="flex items-start gap-3 rounded-xl bg-[var(--status-pending)]/10 p-3.5">
+            {membershipAction === 'disable' ? (
+              <AlertTriangle
+                size={18}
+                className="mt-0.5 shrink-0 text-[var(--status-pending)]"
+                aria-hidden="true"
+              />
+            ) : (
+              <UserRoundPlus
+                size={18}
+                className="mt-0.5 shrink-0 text-[var(--accent)]"
+                aria-hidden="true"
+              />
+            )}
+            <p className="text-sm leading-5 text-[var(--muted)]">
+              {membershipAction === 'disable'
+                ? 'You can enable this member again later.'
+                : 'This restores the member’s access to the store.'}
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <AppButton
+              variant="secondary"
+              onClick={() => setMembershipAction(null)}
+              disabled={isUpdatingMember}
+            >
+              Cancel
+            </AppButton>
+            <AppButton
+              onClick={() => void handleConfirmMembershipAction()}
+              disabled={isUpdatingMember || !membershipAction || !detailMember}
+            >
+              {isUpdatingMember
+                ? membershipAction === 'disable'
+                  ? 'Disabling...'
+                  : 'Enabling...'
+                : membershipAction === 'disable'
+                  ? 'Confirm disable'
+                  : 'Confirm enable'}
+            </AppButton>
+          </div>
+        </div>
+      </AppDialog>
 
       <AppDialog
         open={assignOpen}

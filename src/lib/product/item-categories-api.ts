@@ -11,6 +11,10 @@ function categoriesPath(storeId: string): string {
 }
 
 export const itemCategoriesApi = {
+  listPage: (storeId: string, page: number, limit: number) =>
+    Api.get<StoreItemCategoryListResponse>(categoriesPath(storeId), {
+      params: { page, limit },
+    }).then((response) => response.data),
   list: (storeId: string) =>
     fetchAllPages((page, limit) =>
       Api.get<StoreItemCategoryListResponse>(categoriesPath(storeId), {

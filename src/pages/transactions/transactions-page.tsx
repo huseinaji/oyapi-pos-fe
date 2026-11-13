@@ -21,7 +21,6 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { PageHeader } from '@/components/ui/page-header';
 import { RowActions } from '@/components/ui/row-actions';
 import { SectionCard } from '@/components/ui/section-card';
-import { AppSelect } from '@/components/ui/app-select';
 import { TablePagination } from '@/components/ui/table-pagination';
 import { TransactionsTable } from './transactions-table';
 import { TransactionDetailDrawer } from './transaction-detail-drawer';
@@ -40,7 +39,6 @@ import {
   createDefaultTransactionFilters,
   filterTransactions,
   formatRp,
-  getUniqueValues,
   statusStyles,
   statusMobileIcon,
   todayIso,
@@ -140,11 +138,6 @@ export default function TransactionsPage() {
     totalTransactions,
     transactionsQuery.data,
   ]);
-
-  const { customers, cashiers } = useMemo(
-    () => getUniqueValues(transactions),
-    [transactions],
-  );
 
   const filteredTransactions = useMemo(
     () =>
@@ -586,42 +579,6 @@ export default function TransactionsPage() {
                     />
                   </div>
                 )}
-              </div>
-
-              {/* Customer & Cashier */}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm">
-                  <span className="mb-1 block text-[var(--muted)]">
-                    Customer
-                  </span>
-                  <AppSelect
-                    value={filters.customer}
-                    onValueChange={(value) => updateFilter('customer', value)}
-                    options={[
-                      { value: 'all', label: 'All customers' },
-                      ...customers.map((customer) => ({
-                        value: customer,
-                        label: customer,
-                      })),
-                    ]}
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="mb-1 block text-[var(--muted)]">
-                    Cashier
-                  </span>
-                  <AppSelect
-                    value={filters.cashier}
-                    onValueChange={(value) => updateFilter('cashier', value)}
-                    options={[
-                      { value: 'all', label: 'All cashiers' },
-                      ...cashiers.map((cashier) => ({
-                        value: cashier,
-                        label: cashier,
-                      })),
-                    ]}
-                  />
-                </label>
               </div>
 
               {/* Status & Payment */}

@@ -59,6 +59,11 @@ export type StoreMemberListResponse = {
   rows: StoreMember[];
 };
 
+export type AssignStoreMemberDto = {
+  userId: string;
+  role: StoreRole;
+};
+
 export type DisableStoreMemberDto = {
   userId: string;
 };

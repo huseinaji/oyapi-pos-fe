@@ -193,7 +193,7 @@ test('enables an inactive member through the store assign endpoint', async ({
     .poll(() => assignedRequest)
     .toEqual({
       path: `/api/v1/store/${STORE_ID}/assign`,
-      body: { userId: 'inactive-member-user' },
+      body: { userId: 'inactive-member-user', role: 'cashier' },
     });
   await expect(drawer).toBeHidden();
 });

@@ -39,7 +39,6 @@ import {
 import { DataTable } from '@/components/ui/data-table';
 import {
   getCoreRowModel,
-  getSortedRowModel,
   useReactTable,
   type ColumnDef,
   type PaginationState,
@@ -92,6 +91,7 @@ export default function CashierSessionsPage() {
     null,
   );
   const [documentDrawerOpen, setDocumentDrawerOpen] = useState(false);
+  const [closingDialogOpen, setClosingDialogOpen] = useState(false);
   const [mockClosingData, setMockClosingData] = useState<
     Record<string, SessionClosingMockData>
   >({});
@@ -302,6 +302,8 @@ export default function CashierSessionsPage() {
         },
       }));
       setDocumentDrawerOpen(false);
+      setClosingDialogOpen(false);
+      if (!documentDrawerOpen) setDocumentSession(null);
       toast.success('Cashier closed', {
         description:
           'Session closed. Physical counts are stored as mock data for this page session.',
@@ -359,19 +361,17 @@ export default function CashierSessionsPage() {
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              {canCloseSession ? (
-                <AppButton
-                  variant="inverted"
-                  onClick={() => openSessionDetails(activeSession)}
-                >
-                  <LogOut size={15} />
-                  <span className="ml-2 ">Close cashier</span>
-                </AppButton>
-              ) : (
-                <p className="text-sm text-[var(--muted)]">
-                  POS is open for this store.
-                </p>
-              )}
+              <AppButton
+                variant="inverted"
+                onClick={() => {
+                  setDocumentSession(activeSession);
+                  setDocumentDrawerOpen(false);
+                  setClosingDialogOpen(true);
+                }}
+              >
+                <LogOut size={15} />
+                <span className="ml-2 ">Close cashier</span>
+              </AppButton>
             </div>
           </div>
         ) : (
@@ -616,6 +616,8 @@ export default function CashierSessionsPage() {
           onCloseAnimationEnd={() => {
             if (!documentDrawerOpen) setDocumentSession(null);
           }}
+          openClosingDialog={closingDialogOpen}
+          onClosingDialogOpenChange={setClosingDialogOpen}
           canClose={Boolean(
             canCloseSession &&
               documentSession.id === activeSession?.id &&

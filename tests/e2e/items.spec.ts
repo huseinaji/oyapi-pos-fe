@@ -18,6 +18,23 @@ async function openItemsPage(
 }
 
 test.describe('Items catalog', () => {
+  test('frames the table with a rounded outer border on desktop and mobile', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1536, height: 900 });
+    await openItemsPage(page);
+
+    const tableFrame = page.locator('[data-slot="framed-table"]');
+    await expect(tableFrame).toBeVisible();
+    await expect(tableFrame).toHaveCSS('border-radius', '10px');
+    await expect(tableFrame).toHaveCSS('border-top-width', '1px');
+    await expect(tableFrame).toHaveCSS('overflow', 'hidden');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(tableFrame).toBeVisible();
+    await expect(tableFrame).toHaveCSS('border-radius', '10px');
+  });
+
   test('prepopulates and saves description when editing an item', async ({
     page,
   }) => {

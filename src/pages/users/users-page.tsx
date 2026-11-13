@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   AlertTriangle,
   RefreshCw,
@@ -20,6 +21,13 @@ import {
 import { toast } from 'sonner';
 
 import { FormField } from '@/components/layout/form-field';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { AppButton } from '@/components/ui/app-button';
 import { AppDialog } from '@/components/ui/app-dialog';
 import { PageHeader } from '@/components/ui/page-header';
@@ -39,6 +47,10 @@ import { UsersTable } from './users-table';
 import { UserDetailDrawer } from './user-detail-drawer';
 
 const ROLE_OPTIONS = ['all', 'admin', 'cashier'] as const;
+const STORE_ROLE_OPTIONS = [
+  { label: 'Cashier', value: 'cashier' },
+  { label: 'Admin', value: 'admin' },
+] as const;
 type RoleFilter = (typeof ROLE_OPTIONS)[number];
 
 function extractApiError(error: unknown): string {
@@ -56,7 +68,7 @@ function RoleBadge({ role }: { role: StoreMember['role'] }) {
 }
 
 function inputClass(hasError: boolean) {
-  return `w-full rounded-[12px] border bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--foreground)] outline-none transition focus:ring-2 ${
+  return `h-[52px] w-full rounded-[12px] border bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--foreground)] outline-none transition focus:ring-2 ${
     hasError
       ? 'border-[var(--status-danger)] focus:ring-[var(--status-danger)]/20'
       : 'border-[var(--border)] focus:border-[var(--accent)] focus:ring-[var(--accent)]/20'
@@ -76,6 +88,11 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignUsername, setAssignUsername] = useState('');
+  const [isAssignUsernameFocused, setIsAssignUsernameFocused] = useState(false);
+  const [selectedAssignUsername, setSelectedAssignUsername] = useState<
+    string | null
+  >(null);
+  const [assignRole, setAssignRole] = useState<StoreMember['role']>('cashier');
   const [assignError, setAssignError] = useState<string | null>(null);
   const [isAssigning, setIsAssigning] = useState(false);
   const [detailMember, setDetailMember] = useState<StoreMember | null>(null);
@@ -90,6 +107,54 @@ export default function UsersPage() {
     pageIndex: 0,
     pageSize: 10,
   });
+  const assignUsernameFieldRef = useRef<HTMLDivElement>(null);
+  const normalizedAssignUsername = assignUsername.trim();
+  const [debouncedAssignUsername, setDebouncedAssignUsername] = useState('');
+
+  useEffect(() => {
+    if (!assignOpen) return;
+
+    const closeSuggestionsOnOutsidePointer = (event: PointerEvent) => {
+      if (!assignUsernameFieldRef.current?.contains(event.target as Node)) {
+        setIsAssignUsernameFocused(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeSuggestionsOnOutsidePointer);
+    return () =>
+      document.removeEventListener(
+        'pointerdown',
+        closeSuggestionsOnOutsidePointer,
+      );
+  }, [assignOpen]);
+
+  useEffect(() => {
+    if (!assignOpen || normalizedAssignUsername.length < 3) {
+      setDebouncedAssignUsername('');
+      return;
+    }
+
+    const timeoutId = window.setTimeout(
+      () => setDebouncedAssignUsername(normalizedAssignUsername),
+      250,
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [assignOpen, normalizedAssignUsername]);
+
+  const usernameSearchQuery = useQuery({
+    queryKey: ['users', 'username-search', debouncedAssignUsername],
+    queryFn: () => usersApi.searchByUsername(debouncedAssignUsername),
+    enabled: assignOpen && debouncedAssignUsername.length >= 3,
+  });
+  console.log(usernameSearchQuery);
+  const isUsernameSearchReady =
+    normalizedAssignUsername.length >= 3 &&
+    debouncedAssignUsername === normalizedAssignUsername;
+  const showUsernameSuggestions =
+    assignOpen &&
+    isAssignUsernameFocused &&
+    normalizedAssignUsername.length >= 3 &&
+    selectedAssignUsername !== normalizedAssignUsername;
 
   const currentMember = members.find(
     (member) => member.userId === currentUser?.sub,
@@ -113,6 +178,8 @@ export default function UsersPage() {
 
   const openAssign = () => {
     setAssignUsername('');
+    setSelectedAssignUsername(null);
+    setAssignRole('cashier');
     setAssignError(null);
     setAssignOpen(true);
   };
@@ -121,6 +188,7 @@ export default function UsersPage() {
     if (isAssigning) return;
     setAssignOpen(false);
     setAssignUsername('');
+    setSelectedAssignUsername(null);
     setAssignError(null);
   };
 
@@ -152,12 +220,13 @@ export default function UsersPage() {
         return;
       }
 
-      await assignMutation.mutateAsync(user.id);
+      await assignMutation.mutateAsync({ userId: user.id, role: assignRole });
       toast.success('Member added', {
         description: `"${user.username}" now has access to this store.`,
       });
       setAssignOpen(false);
       setAssignUsername('');
+      setSelectedAssignUsername(null);
     } catch (error) {
       setAssignError(extractApiError(error));
     } finally {
@@ -201,7 +270,10 @@ export default function UsersPage() {
     }
 
     try {
-      await assignMutation.mutateAsync(member.userId);
+      await assignMutation.mutateAsync({
+        userId: member.userId,
+        role: member.role,
+      });
       toast.success('Member enabled', {
         description: `${member.user.username} can access this store again.`,
       });
@@ -574,47 +646,127 @@ export default function UsersPage() {
             {assignError}
           </div>
         )}
-        <FormField label="Platform username" required>
-          <input
-            autoComplete="username"
-            value={assignUsername}
-            onChange={(event) => {
-              setAssignUsername(event.target.value);
-              if (assignError) setAssignError(null);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                void handleAssignMember();
-              }
-            }}
-            className={inputClass(Boolean(assignError))}
-            placeholder="e.g. jane.cashier"
-            disabled={isAssigning}
-          />
+        <FormField
+          label="Platform username"
+          htmlFor="assign-platform-username"
+          required
+        >
+          <div ref={assignUsernameFieldRef} className="relative">
+            <input
+              id="assign-platform-username"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={showUsernameSuggestions}
+              aria-controls="assign-platform-username-options"
+              autoComplete="off"
+              value={assignUsername}
+              onFocus={() => setIsAssignUsernameFocused(true)}
+              onBlur={() => setIsAssignUsernameFocused(false)}
+              onChange={(event) => {
+                setAssignUsername(event.target.value);
+                setSelectedAssignUsername(null);
+                if (assignError) setAssignError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  void handleAssignMember();
+                }
+              }}
+              className={inputClass(Boolean(assignError))}
+              placeholder="e.g. jane.cashier"
+              disabled={isAssigning}
+            />
+            {showUsernameSuggestions && (
+              <div
+                id="assign-platform-username-options"
+                role="listbox"
+                aria-label="Matching platform accounts"
+                className="mt-1 max-h-56 w-full overflow-auto rounded-[14px] border border-[var(--accent)]/35 bg-[var(--card)] p-1.5 shadow-[0_0_24px_rgba(0,0,0,0.2),0_0_18px_rgba(88,166,255,0.12)]"
+              >
+                {!isUsernameSearchReady || usernameSearchQuery.isFetching ? (
+                  <p className="px-3 py-2 text-sm text-[var(--muted)]">
+                    Searching users…
+                  </p>
+                ) : usernameSearchQuery.isError ? (
+                  <p
+                    role="alert"
+                    className="px-3 py-2 text-sm text-[var(--status-danger)]"
+                  >
+                    Unable to search accounts:{' '}
+                    {extractApiError(usernameSearchQuery.error)}
+                  </p>
+                ) : usernameSearchQuery.data?.length ? (
+                  usernameSearchQuery.data.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      role="option"
+                      aria-selected={selectedAssignUsername === user.username}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setAssignUsername(user.username);
+                        setSelectedAssignUsername(user.username);
+                        if (assignError) setAssignError(null);
+                      }}
+                      className={`flex w-full flex-col rounded-[10px] px-3 py-2 text-left text-sm transition focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
+                        selectedAssignUsername === user.username
+                          ? 'bg-[var(--accent)]/12 text-[var(--accent)]'
+                          : 'text-[var(--foreground)] hover:bg-[var(--accent)]/8 hover:text-[var(--accent)]'
+                      }`}
+                    >
+                      <span className="font-medium">{user.username}</span>
+                      <span className="text-xs text-[var(--muted)]">
+                        {user.email}
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <p className="px-3 py-2 text-sm text-[var(--muted)]">
+                    No platform accounts found.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </FormField>
         <FormField
           label="Store Role"
+          htmlFor="assign-store-role"
           required
           description="The account must already exist. No new user account will be created."
         >
-          <input
-            autoComplete="role"
-            value={assignUsername}
-            onChange={(event) => {
-              setAssignUsername(event.target.value);
-              if (assignError) setAssignError(null);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                event.preventDefault();
-                void handleAssignMember();
+          <Select
+            value={assignRole}
+            onValueChange={(value) => {
+              if (value === 'admin' || value === 'cashier') {
+                setAssignRole(value);
               }
             }}
-            className={inputClass(Boolean(assignError))}
-            placeholder="e.g. jane.cashier"
-            disabled={isAssigning}
-          />
+          >
+            <SelectTrigger
+              id="assign-store-role"
+              className={`${inputClass(false)} !h-[52px]`}
+              disabled={isAssigning}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent
+              align="start"
+              alignItemWithTrigger={false}
+              className="box-border rounded-xl border border-[var(--border)] shadow-[0_8px_24px_rgba(0,0,0,0.12)] ring-0"
+            >
+              {STORE_ROLE_OPTIONS.map((role) => (
+                <SelectItem
+                  key={role.value}
+                  value={role.value}
+                  className="rounded-lg px-3 py-2 transition-colors duration-150 data-[highlighted]:bg-[var(--surface-accent)] data-[highlighted]:text-[var(--accent)] focus:bg-[var(--surface-accent)] focus:text-[var(--accent)]"
+                >
+                  {role.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FormField>
         <div className="mt-6 flex justify-end gap-2">
           <AppButton

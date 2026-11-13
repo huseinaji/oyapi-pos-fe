@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { StoreApi } from './store-api';
 import { authQueryKeys, useMeQuery } from '@/lib/auth/auth-store';
-import type { CreateStoreDto } from './store-types';
+import type { AssignStoreMemberDto, CreateStoreDto } from './store-types';
 
 export const storeQueryKeys = {
   myStores: ['listMyStore'] as const,
@@ -32,11 +32,11 @@ export function useAssignStoreMemberMutation(storeId: string | undefined) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (userId: string) => {
+    mutationFn: (body: AssignStoreMemberDto) => {
       if (!storeId) {
         throw new Error('An active store is required to assign a member.');
       }
-      return StoreApi.assignMember(storeId, userId);
+      return StoreApi.assignMember(storeId, body);
     },
     onSuccess: async () => {
       if (storeId) {

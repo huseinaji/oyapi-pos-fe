@@ -88,24 +88,35 @@ async function openSessionDetails(
 }
 
 test.describe('Cashier session detail drawer', () => {
+  test('opens the closing count dialog directly from the active session', async ({
+    page,
+  }) => {
+    await openSessionDetails(page);
+    await page.getByRole('button', { name: 'Close cashier' }).click();
+
+    await expect(
+      page.getByRole('heading', { name: 'Count closing stock and cash' }),
+    ).toBeVisible();
+    await expect(page.locator('[data-slot="drawer-popup"]')).toHaveCount(0);
+    await expect(page.getByLabel('Real stock count for adonan')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Count closing stock and cash' }),
+    ).toHaveCount(0);
+    await expect(page.locator('[data-slot="drawer-popup"]')).toHaveCount(0);
+  });
+
   test('records mock stock and cash counts before closing the session', async ({
     page,
   }) => {
     await openSessionDetails(page);
     await page.getByRole('button', { name: 'Close cashier' }).click();
 
-    const drawer = page.locator('[data-slot="drawer-popup"]');
-    await expect(drawer).toHaveAttribute('data-swipe-direction', 'right');
-    await expect(page.getByText('Session items')).toBeVisible();
-    await expect(
-      page.getByLabel('Real cash counted for the session'),
-    ).toHaveCount(0);
-    await expect(page.getByLabel('Real stock count for adonan')).toHaveCount(0);
-
-    await page.getByRole('button', { name: 'Close session' }).click();
     await expect(
       page.getByRole('heading', { name: 'Count closing stock and cash' }),
     ).toBeVisible();
+    await expect(page.locator('[data-slot="drawer-popup"]')).toHaveCount(0);
     await expect(
       page.getByLabel('Real cash counted for the session'),
     ).toBeVisible();
@@ -138,7 +149,6 @@ test.describe('Cashier session detail drawer', () => {
   }) => {
     await openSessionDetails(page);
     await page.getByRole('button', { name: 'Close cashier' }).click();
-    await page.getByRole('button', { name: 'Close session' }).click();
     await page.getByRole('button', { name: 'Review counts' }).click();
     await expect(
       page.getByText('Enter a valid real stock count for adonan.'),
@@ -165,7 +175,11 @@ test.describe('Cashier session detail drawer', () => {
     page,
   }) => {
     await openSessionDetails(page, { width: 390, height: 844 });
-    await page.getByRole('button', { name: 'Close cashier' }).click();
+    await page
+      .getByRole('row')
+      .filter({ hasText: 'administrator' })
+      .filter({ visible: true })
+      .click();
 
     await expect(page.locator('[data-slot="drawer-popup"]')).toHaveAttribute(
       'data-swipe-direction',
@@ -195,7 +209,11 @@ test.describe('Cashier session detail drawer', () => {
     page,
   }) => {
     await openSessionDetails(page);
-    await page.getByRole('button', { name: 'Close cashier' }).click();
+    await page
+      .getByRole('row')
+      .filter({ hasText: 'administrator' })
+      .filter({ visible: true })
+      .click();
 
     const drawer = page.locator('[data-slot="drawer-popup"]');
     await expect(drawer).toBeVisible();
@@ -211,7 +229,11 @@ test.describe('Cashier session detail drawer', () => {
     page,
   }) => {
     await openSessionDetails(page, undefined, 7);
-    await page.getByRole('button', { name: 'Close cashier' }).click();
+    await page
+      .getByRole('row')
+      .filter({ hasText: 'administrator' })
+      .filter({ visible: true })
+      .click();
 
     await expect(
       page.getByText('Showing 1–5 of 7 matching items'),
@@ -285,7 +307,11 @@ test.describe('Cashier session detail drawer', () => {
 
   test('keeps large session item lists usable on mobile', async ({ page }) => {
     await openSessionDetails(page, { width: 390, height: 844 }, 7);
-    await page.getByRole('button', { name: 'Close cashier' }).click();
+    await page
+      .getByRole('row')
+      .filter({ hasText: 'administrator' })
+      .filter({ visible: true })
+      .click();
 
     await expect(
       page.getByText('Showing 1–5 of 7 matching items'),

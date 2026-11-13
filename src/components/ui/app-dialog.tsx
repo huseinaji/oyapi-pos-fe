@@ -10,6 +10,9 @@ type AppDialogProps = {
   title: string;
   description?: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
+  headerClassName?: string;
+  closeButtonClassName?: string;
   size?: 'sm' | 'md' | 'lg';
 };
 
@@ -28,6 +31,9 @@ export function AppDialog({
   title,
   description,
   children,
+  footer,
+  headerClassName,
+  closeButtonClassName,
   size = 'md',
 }: AppDialogProps) {
   const titleId = useId();
@@ -146,7 +152,9 @@ export function AppDialog({
         className={`relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--card)] shadow-[0_0_0.5px_rgba(0,0,0,0.14),0_8px_24px_rgba(0,0,0,0.18)] ${sizeClasses[size]}`}
       >
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
+        <div
+          className={`flex items-start justify-between gap-4 border-b border-[var(--border)] px-5 py-4 ${headerClassName ?? ''}`}
+        >
           <div>
             <h2 id={titleId} className="text-lg font-semibold">
               {title}
@@ -164,7 +172,7 @@ export function AppDialog({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="shrink-0 rounded-full p-2 text-[var(--muted)] transition hover:bg-[var(--surface-muted)] active:scale-95"
+            className={`shrink-0 rounded-full p-2 text-[var(--muted)] transition hover:bg-[var(--surface-muted)] active:scale-95 ${closeButtonClassName ?? ''}`}
           >
             <X size={18} />
           </button>
@@ -172,6 +180,12 @@ export function AppDialog({
 
         {/* Body */}
         <div className="overflow-y-auto px-5 py-4">{children}</div>
+
+        {footer && (
+          <div className="shrink-0 border-t border-[var(--border)] bg-[var(--surface-muted)]/30 px-5 py-4">
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body,

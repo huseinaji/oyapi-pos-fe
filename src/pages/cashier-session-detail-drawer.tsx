@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  Info,
   LogIn,
   LogOut,
   Package,
@@ -50,6 +51,8 @@ type CashierSessionDetailDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCloseAnimationEnd: () => void;
+  openClosingDialog: boolean;
+  onClosingDialogOpenChange: (open: boolean) => void;
   canClose: boolean;
   isClosing: boolean;
   mockClosingData?: SessionClosingMockData;
@@ -150,6 +153,8 @@ export function CashierSessionDetailDrawer({
   open,
   onOpenChange,
   onCloseAnimationEnd,
+  openClosingDialog,
+  onClosingDialogOpenChange,
   canClose,
   isClosing,
   mockClosingData,
@@ -223,6 +228,17 @@ export function CashierSessionDetailDrawer({
     setClosingItemSearch('');
     setClosingItemPage(0);
   }, [session?.id, open]);
+
+  useEffect(() => {
+    setClosingDialogStep(openClosingDialog ? 'count' : 'closed');
+  }, [openClosingDialog]);
+
+  const closeClosingDialog = () => {
+    if (isClosing) return;
+    setClosingDialogStep('closed');
+    setValidationError(null);
+    onClosingDialogOpenChange(false);
+  };
 
   const reviewClosingCounts = () => {
     if (!session) return;
@@ -534,7 +550,6 @@ export function CashierSessionDetailDrawer({
                         </Table>
                       </div>
 
-                      
                       {stockRows.length > SESSION_ITEMS_PAGE_SIZE && (
                         <SessionItemsPager
                           page={itemPage}
@@ -554,12 +569,6 @@ export function CashierSessionDetailDrawer({
                   )}
                 </section>
 
-                {isOpenSession && !canClose && (
-                  <p className="text-sm text-[var(--muted)]">
-                    Only the cashier who opened this session can record the
-                    closing count and close it.
-                  </p>
-                )}
                 {session.status === 'CLOSED' && !mockClosingData && (
                   <p className="text-xs text-[var(--muted)]">
                     Real counts are mock-only and were not recorded for this
@@ -569,7 +578,7 @@ export function CashierSessionDetailDrawer({
               </div>
 
               <DrawerFooter className="flex-row justify-end border-t border-[var(--border)]/70 bg-[var(--card)] pt-4">
-                {isOpenSession && canClose ? (
+                {isOpenSession && (
                   <AppButton
                     onClick={() => {
                       setValidationError(null);
@@ -579,13 +588,6 @@ export function CashierSessionDetailDrawer({
                   >
                     <LogOut size={15} />
                     <span className="ml-2">Close session</span>
-                  </AppButton>
-                ) : (
-                  <AppButton
-                    variant="secondary"
-                    onClick={() => onOpenChange(false)}
-                  >
-                    Close
                   </AppButton>
                 )}
               </DrawerFooter>
@@ -597,11 +599,7 @@ export function CashierSessionDetailDrawer({
       {session && (
         <AppDialog
           open={closingDialogStep !== 'closed'}
-          onClose={() => {
-            if (isClosing) return;
-            setClosingDialogStep('closed');
-            setValidationError(null);
-          }}
+          onClose={closeClosingDialog}
           title={
             closingDialogStep === 'confirm'
               ? 'Review and confirm close'
@@ -613,6 +611,34 @@ export function CashierSessionDetailDrawer({
               : 'Enter actual stock for every item and the total cash counted.'
           }
           size="lg"
+          headerClassName={
+            closingDialogStep === 'count' ? 'border-b-0' : undefined
+          }
+          closeButtonClassName={
+            closingDialogStep === 'count'
+              ? 'rounded-xl bg-[var(--surface-muted)] p-2.5'
+              : undefined
+          }
+          footer={
+            closingDialogStep === 'count' ? (
+              <div className="flex justify-end gap-2 [&_button]:h-11 [&_button]:rounded-[10px] [&_button]:px-5">
+                <AppButton
+                  variant="secondary"
+                  onClick={closeClosingDialog}
+                  disabled={isClosing}
+                >
+                  Cancel
+                </AppButton>
+                <AppButton
+                  type="button"
+                  onClick={reviewClosingCounts}
+                  disabled={isClosing}
+                >
+                  Review counts
+                </AppButton>
+              </div>
+            ) : undefined
+          }
         >
           {closingDialogStep === 'count' ? (
             <form
@@ -622,12 +648,23 @@ export function CashierSessionDetailDrawer({
                 reviewClosingCounts();
               }}
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-medium text-[var(--foreground)]">
-                  {countedItems} of {stockRows.length} items counted
-                </p>
+              <section
+                className="space-y-2.5"
+                aria-labelledby="closing-stock-title"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <h3
+                    id="closing-stock-title"
+                    className="text-[11px] font-semibold tracking-[0.08em] text-[var(--muted)]"
+                  >
+                    STOCK
+                  </h3>
+                  <p className="text-xs tabular-nums text-[var(--muted)]">
+                    {countedItems} of {stockRows.length} items counted
+                  </p>
+                </div>
                 {stockRows.length > SESSION_ITEMS_PAGE_SIZE && (
-                  <div className="relative w-full sm:max-w-xs">
+                  <div className="relative w-full">
                     <Search
                       size={15}
                       className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]"
@@ -645,97 +682,116 @@ export function CashierSessionDetailDrawer({
                     />
                   </div>
                 )}
-              </div>
-
-              <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
-                {filteredClosingStockRows.length > 0 ? (
-                  visibleClosingStockRows.map((row) => (
-                    <li
-                      key={row.itemId}
-                      className="flex items-center justify-between gap-4 p-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-[var(--foreground)]">
-                          {row.name}
-                        </p>
-                        <p className="mt-1 text-xs text-[var(--muted)]">
-                          Expected{' '}
-                          {row.expectedFinalQty === undefined
-                            ? '—'
-                            : formatQuantity(row.expectedFinalQty, row.uom)}
-                        </p>
-                      </div>
-                      <label className="w-32 shrink-0 text-xs font-medium text-[var(--muted)]">
-                        Real stock
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          inputMode="decimal"
-                          value={actualStockByItem[row.itemId] ?? ''}
-                          onChange={(event) => {
-                            setActualStockByItem((current) => ({
-                              ...current,
-                              [row.itemId]: event.target.value,
-                            }));
-                            setValidationError(null);
-                          }}
-                          className="mt-1 h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-right text-sm tabular-nums text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
-                          aria-label={`Real stock count for ${row.name}`}
-                          aria-invalid={Boolean(
-                            validationError?.startsWith(
-                              'Enter a valid real stock count',
-                            ),
-                          )}
-                          placeholder="0"
-                        />
-                      </label>
+                <ul className="space-y-2">
+                  {filteredClosingStockRows.length > 0 ? (
+                    visibleClosingStockRows.map((row) => (
+                      <li
+                        key={row.itemId}
+                        className="flex flex-col justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)]/40 px-3 py-3 sm:flex-row sm:items-center sm:px-4"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                            {row.name}
+                          </p>
+                          <p className="mt-1 inline-flex rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-[11px] font-medium text-[var(--muted)]">
+                            Expected{' '}
+                            {row.expectedFinalQty === undefined
+                              ? '—'
+                              : formatQuantity(row.expectedFinalQty, row.uom)}
+                          </p>
+                        </div>
+                        <label className="flex shrink-0 items-center justify-between gap-3 sm:justify-start">
+                          <span className="text-xs font-medium text-[var(--muted)]">
+                            Real stock
+                          </span>
+                          <span className="flex h-11 w-32 items-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] transition focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              inputMode="decimal"
+                              value={actualStockByItem[row.itemId] ?? ''}
+                              onChange={(event) => {
+                                setActualStockByItem((current) => ({
+                                  ...current,
+                                  [row.itemId]: event.target.value,
+                                }));
+                                setValidationError(null);
+                              }}
+                              className="h-full min-w-0 flex-1 bg-transparent px-2 text-right text-sm font-semibold tabular-nums text-[var(--foreground)] outline-none"
+                              aria-label={`Real stock count for ${row.name}`}
+                              aria-invalid={Boolean(
+                                validationError?.startsWith(
+                                  'Enter a valid real stock count',
+                                ),
+                              )}
+                              placeholder="0"
+                            />
+                            <span className="pr-3 text-xs text-[var(--muted)]">
+                              {row.uom}
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="rounded-xl border border-dashed border-[var(--border)] px-4 py-5 text-sm text-[var(--muted)]">
+                      {stockRows.length === 0
+                        ? 'No tracked stock items. Enter the session cash count to continue.'
+                        : `No session items match “${closingItemSearch}”.`}
                     </li>
-                  ))
-                ) : (
-                  <li className="p-3 text-sm text-[var(--muted)]">
-                    {stockRows.length === 0
-                      ? 'No tracked stock items. Enter the session cash count to continue.'
-                      : `No session items match “${closingItemSearch}”.`}
-                  </li>
-                )}
-              </ul>
+                  )}
+                </ul>
 
-              {stockRows.length > SESSION_ITEMS_PAGE_SIZE && (
-                <SessionItemsPager
-                  page={closingItemPage}
-                  pageCount={getStockPageCount(filteredClosingStockRows.length)}
-                  onPageChange={setClosingItemPage}
-                />
-              )}
-
-              <label className="block text-xs font-medium text-[var(--muted)]">
-                Real cash counted
-                <div className="mt-1 flex h-11 items-center overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)] transition focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20">
-                  <span className="pl-3 text-sm text-[var(--muted)]">Rp</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    inputMode="numeric"
-                    value={actualCash}
-                    onChange={(event) => {
-                      setActualCash(event.target.value);
-                      setValidationError(null);
-                    }}
-                    className="h-full min-w-0 flex-1 bg-transparent px-3 text-right text-sm tabular-nums text-[var(--foreground)] outline-none"
-                    aria-label="Real cash counted for the session"
-                    aria-invalid={
-                      validationError ===
-                      'Enter the actual cash counted before closing.'
-                    }
-                    placeholder="0"
+                {stockRows.length > SESSION_ITEMS_PAGE_SIZE && (
+                  <SessionItemsPager
+                    page={closingItemPage}
+                    pageCount={getStockPageCount(
+                      filteredClosingStockRows.length,
+                    )}
+                    onPageChange={setClosingItemPage}
                   />
-                </div>
-              </label>
+                )}
+              </section>
 
-              <div className="flex items-start gap-3 rounded-xl border border-[var(--status-pending)]/30 bg-[var(--status-pending)]/10 p-3">
-                <AlertTriangle
+              <section
+                className="space-y-2"
+                aria-labelledby="closing-cash-title"
+              >
+                <h3
+                  id="closing-cash-title"
+                  className="text-[11px] font-semibold tracking-[0.08em] text-[var(--muted)]"
+                >
+                  CASH
+                </h3>
+                <label className="block text-sm font-semibold text-[var(--foreground)]">
+                  Real cash counted
+                  <span className="mt-1.5 flex h-12 items-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] transition focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20">
+                    <span className="pl-3 text-sm text-[var(--muted)]">Rp</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
+                      value={actualCash}
+                      onChange={(event) => {
+                        setActualCash(event.target.value);
+                        setValidationError(null);
+                      }}
+                      className="h-full min-w-0 flex-1 bg-transparent px-3 text-right text-base font-semibold tabular-nums text-[var(--foreground)] outline-none"
+                      aria-label="Real cash counted for the session"
+                      aria-invalid={
+                        validationError ===
+                        'Enter the actual cash counted before closing.'
+                      }
+                      placeholder="0"
+                    />
+                  </span>
+                </label>
+              </section>
+
+              <div className="flex items-start gap-2.5 rounded-xl border border-[var(--status-pending)]/25 bg-[var(--status-pending)]/10 px-3 py-2.5">
+                <Info
                   size={17}
                   className="mt-0.5 shrink-0 text-[var(--status-pending)]"
                   aria-hidden="true"
@@ -751,22 +807,6 @@ export function CashierSessionDetailDrawer({
                   {validationError}
                 </p>
               )}
-
-              <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--border)] pt-4">
-                <AppButton
-                  variant="secondary"
-                  onClick={() => {
-                    setClosingDialogStep('closed');
-                    setValidationError(null);
-                  }}
-                  disabled={isClosing}
-                >
-                  Cancel
-                </AppButton>
-                <AppButton type="submit" disabled={isClosing}>
-                  Review counts
-                </AppButton>
-              </div>
             </form>
           ) : (
             <div className="space-y-5">

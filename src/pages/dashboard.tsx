@@ -7,7 +7,6 @@ import {
   ShoppingCart,
   TrendingUp,
 } from 'lucide-react';
-import { Link } from 'react-router';
 import {
   Area,
   AreaChart,
@@ -24,7 +23,6 @@ import {
   YAxis,
 } from 'recharts';
 
-import { AppButton } from '@/components/ui/app-button';
 import { Button } from '@/components/ui/button';
 import {
   Card,

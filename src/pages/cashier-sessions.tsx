@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Clock,
-  FileText,
   LogIn,
   LogOut,
   Package,
@@ -25,19 +24,21 @@ import {
 import { useMeQuery } from '@/lib/auth/auth-store';
 import { useProductsQuery } from '@/lib/product/product-store';
 import {
-  useCashierSessionsQuery,
+  useCashierSessionsPageQuery,
   useCloseCashierSessionMutation,
   useOpenCashierSessionMutation,
 } from '@/lib/cashier-sessions/cashier-sessions-store';
-import { useTransactionsQuery } from '@/lib/transaction/transaction-store';
 import type {
   CashierSession,
   CashierStockSnapshot,
 } from '@/lib/cashier-sessions/cashier-sessions-types';
+import {
+  CashierSessionDetailDrawer,
+  type SessionClosingMockData,
+} from './cashier-session-detail-drawer';
 import { DataTable } from '@/components/ui/data-table';
 import {
   getCoreRowModel,
-  getSortedRowModel,
   useReactTable,
   type ColumnDef,
   type PaginationState,
@@ -59,76 +60,50 @@ function formatDate(value?: string): string {
   }).format(new Date(value));
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('id-ID', {
-    style: 'currency',
-    currency: 'IDR',
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function compareStock(session: CashierSession) {
-  return session.openingStock.map((openingItem) => {
-    const soldQuantity = openingItem.soldQuantity;
-
-    return {
-      itemId: openingItem.itemId,
-      name: openingItem.itemName,
-      uom: openingItem.uom,
-      openingQty: openingItem.quantity,
-      finalStockQty:
-        soldQuantity === undefined
-          ? undefined
-          : openingItem.quantity - soldQuantity,
-      soldQuantity,
-    };
-  });
-}
-
 export default function CashierSessionsPage() {
   const { data: user } = useMeQuery();
   const storeId = user?.store?.storeId;
-  const productsQuery = useProductsQuery();
-  const sessionsQuery = useCashierSessionsQuery(storeId);
-  const openMutation = useOpenCashierSessionMutation(storeId);
-  const closeMutation = useCloseCashierSessionMutation(storeId);
-  const sessions = sessionsQuery.data ?? [];
-  const activeSession = sessions.find((session) => session.status === 'OPEN');
-  const canCloseSession = Boolean(
-    user && activeSession?.openedBy.userId === user.sub,
-  );
-  const [openingDialogOpen, setOpeningDialogOpen] = useState(false);
-  const [closingDialogOpen, setClosingDialogOpen] = useState(false);
-  const [documentSession, setDocumentSession] = useState<CashierSession | null>(
-    null,
-  );
-  const [openingStockRows, setOpeningStockRows] = useState<OpeningStockRow[]>(
-    [],
-  );
-  const openingRowId = useRef(0);
   const [sessionPagination, setSessionPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
   });
-  const sortedSessions = useMemo(
-    () =>
-      [...sessions].sort((left, right) =>
-        right.openedAt.localeCompare(left.openedAt),
-      ),
-    [sessions],
+  const productsQuery = useProductsQuery();
+  const sessionsQuery = useCashierSessionsPageQuery(
+    storeId,
+    sessionPagination.pageIndex + 1,
+    sessionPagination.pageSize,
   );
-  const paginatedSessions = useMemo(
-    () =>
-      sortedSessions.slice(
-        sessionPagination.pageIndex * sessionPagination.pageSize,
-        (sessionPagination.pageIndex + 1) * sessionPagination.pageSize,
-      ),
-    [sessionPagination.pageIndex, sessionPagination.pageSize, sortedSessions],
+  const activeSessionQuery = useCashierSessionsPageQuery(storeId, 1, 1, {
+    status: 'active',
+  });
+  const openMutation = useOpenCashierSessionMutation(storeId);
+  const closeMutation = useCloseCashierSessionMutation(storeId);
+  const sessions = sessionsQuery.data?.rows ?? [];
+  const totalSessions = sessionsQuery.data?.count ?? 0;
+  const activeSession = activeSessionQuery.data?.rows.find(
+    (session) => session.status === 'OPEN',
   );
+  const canCloseSession = Boolean(
+    user && activeSession?.openedBy.userId === user.sub,
+  );
+  const [openingDialogOpen, setOpeningDialogOpen] = useState(false);
+  const [documentSession, setDocumentSession] = useState<CashierSession | null>(
+    null,
+  );
+  const [documentDrawerOpen, setDocumentDrawerOpen] = useState(false);
+  const [closingDialogOpen, setClosingDialogOpen] = useState(false);
+  const [mockClosingData, setMockClosingData] = useState<
+    Record<string, SessionClosingMockData>
+  >({});
+  const [openingStockRows, setOpeningStockRows] = useState<OpeningStockRow[]>(
+    [],
+  );
+  const openingRowId = useRef(0);
   useEffect(() => {
+    if (!sessionsQuery.data) return;
     const lastPageIndex = Math.max(
       0,
-      Math.ceil(sessions.length / sessionPagination.pageSize) - 1,
+      Math.ceil(totalSessions / sessionPagination.pageSize) - 1,
     );
 
     if (sessionPagination.pageIndex > lastPageIndex) {
@@ -137,11 +112,7 @@ export default function CashierSessionsPage() {
         pageIndex: lastPageIndex,
       }));
     }
-  }, [
-    sessionPagination.pageIndex,
-    sessionPagination.pageSize,
-    sessions.length,
-  ]);
+  }, [sessionPagination.pageIndex, sessionPagination.pageSize, totalSessions]);
   const sessionColumns = useMemo<ColumnDef<CashierSession>[]>(
     () => [
       {
@@ -183,12 +154,14 @@ export default function CashierSessionsPage() {
     [],
   );
   const sessionsTable = useReactTable({
-    data: paginatedSessions,
+    data: sessions,
     columns: sessionColumns,
     getCoreRowModel: getCoreRowModel(),
   });
-  const openSessionDetails = (session: CashierSession) =>
+  const openSessionDetails = (session: CashierSession) => {
     setDocumentSession(session);
+    setDocumentDrawerOpen(true);
+  };
   const mobileSessionColumns = useMemo<ColumnDef<CashierSession>[]>(
     () => [
       {
@@ -220,7 +193,7 @@ export default function CashierSessionsPage() {
     [],
   );
   const mobileSessionsTable = useReactTable({
-    data: paginatedSessions,
+    data: sessions,
     columns: mobileSessionColumns,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (session) => session.id,
@@ -314,13 +287,26 @@ export default function CashierSessionsPage() {
     }
   };
 
-  const handleCloseCashier = async () => {
+  const handleCloseCashier = async (values: {
+    actualStockByItem: Record<string, number>;
+    actualCash: number;
+  }) => {
     if (!activeSession) return;
     try {
       await closeMutation.mutateAsync();
+      setMockClosingData((current) => ({
+        ...current,
+        [activeSession.id]: {
+          ...values,
+          recordedAt: new Date().toISOString(),
+        },
+      }));
+      setDocumentDrawerOpen(false);
       setClosingDialogOpen(false);
+      if (!documentDrawerOpen) setDocumentSession(null);
       toast.success('Cashier closed', {
-        description: 'The active store session has been closed.',
+        description:
+          'Session closed. Physical counts are stored as mock data for this page session.',
       });
     } catch (error) {
       toast.error('Unable to close cashier', {
@@ -339,18 +325,18 @@ export default function CashierSessionsPage() {
       />
 
       <SectionCard title="Current session">
-        {sessionsQuery.isLoading ? (
+        {activeSessionQuery.isLoading ? (
           <p className="py-5 text-sm text-[var(--muted)]">
             Loading cashier session...
           </p>
-        ) : sessionsQuery.isError ? (
+        ) : activeSessionQuery.isError ? (
           <div className="flex flex-col items-start gap-3 py-4">
             <p className="text-sm text-[var(--status-danger)]">
               Unable to load cashier documents.
             </p>
             <AppButton
               variant="secondary"
-              onClick={() => void sessionsQuery.refetch()}
+              onClick={() => void activeSessionQuery.refetch()}
             >
               Retry
             </AppButton>
@@ -375,19 +361,17 @@ export default function CashierSessionsPage() {
               />
             </div>
             <div className="flex flex-wrap gap-2">
-              {canCloseSession ? (
-                <AppButton
-                  variant="inverted"
-                  onClick={() => setClosingDialogOpen(true)}
-                >
-                  <LogOut size={15} />
-                  <span className="ml-2 ">Close cashier</span>
-                </AppButton>
-              ) : (
-                <p className="text-sm text-[var(--muted)]">
-                  POS is open for this store.
-                </p>
-              )}
+              <AppButton
+                variant="inverted"
+                onClick={() => {
+                  setDocumentSession(activeSession);
+                  setDocumentDrawerOpen(false);
+                  setClosingDialogOpen(true);
+                }}
+              >
+                <LogOut size={15} />
+                <span className="ml-2 ">Close cashier</span>
+              </AppButton>
             </div>
           </div>
         ) : (
@@ -419,7 +403,7 @@ export default function CashierSessionsPage() {
         title="Session documents"
         description="Opening and closing records for this store."
       >
-        {sessions.length === 0 ? (
+        {totalSessions === 0 ? (
           <p className="py-8 text-center text-sm text-[var(--muted)]">
             No cashier documents yet.
           </p>
@@ -443,18 +427,24 @@ export default function CashierSessionsPage() {
               table={sessionsTable}
               className="hidden px-0 md:flex"
               pagination={sessionPagination}
-              totalItems={sessions.length}
+              totalItems={totalSessions}
               onPageChange={(pageIndex) =>
                 setSessionPagination((current) => ({ ...current, pageIndex }))
+              }
+              onPageSizeChange={(pageSize) =>
+                setSessionPagination({ pageIndex: 0, pageSize })
               }
             />
             <TablePagination
               table={mobileSessionsTable}
               className="px-0 md:hidden"
               pagination={sessionPagination}
-              totalItems={sessions.length}
+              totalItems={totalSessions}
               onPageChange={(pageIndex) =>
                 setSessionPagination((current) => ({ ...current, pageIndex }))
+              }
+              onPageSizeChange={(pageSize) =>
+                setSessionPagination({ pageIndex: 0, pageSize })
               }
             />
           </>
@@ -618,63 +608,26 @@ export default function CashierSessionsPage() {
         </div>
       </AppDialog>
 
-      <AppDialog
-        open={closingDialogOpen}
-        onClose={() => setClosingDialogOpen(false)}
-        title="Close cashier"
-        description="Close the active POS session for this store."
-        size="lg"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-[var(--muted)]">
-            Opening time:{' '}
-            <span className="font-medium text-[var(--foreground)]">
-              {formatDate(activeSession?.openedAt)}
-            </span>
-            <br />
-            Opened by:{' '}
-            <span className="font-medium text-[var(--foreground)]">
-              {activeSession?.openedBy.username ?? '—'}
-            </span>
-            <br />
-            Closing cashier:{' '}
-            <span className="font-medium text-[var(--foreground)]">
-              {user?.username ?? '—'}
-            </span>
-          </p>
-          <div className="flex justify-end gap-2">
-            <AppButton
-              variant="secondary"
-              onClick={() => setClosingDialogOpen(false)}
-            >
-              Cancel
-            </AppButton>
-            <AppButton
-              onClick={() => void handleCloseCashier()}
-              disabled={closeMutation.isPending}
-            >
-              <LogOut size={15} />
-              <span className="ml-2">
-                {closeMutation.isPending ? 'Closing...' : 'Close session'}
-              </span>
-            </AppButton>
-          </div>
-        </div>
-      </AppDialog>
-
-      <AppDialog
-        open={Boolean(documentSession)}
-        onClose={() => setDocumentSession(null)}
-        title="POS opening / closing documents"
-        description={
-          documentSession
-            ? `Session ${documentSession.id.slice(0, 8)}`
-            : undefined
-        }
-        size="lg"
-      >
-        {documentSession && <DocumentDetails session={documentSession} />}
-      </AppDialog>
+      {documentSession && (
+        <CashierSessionDetailDrawer
+          session={documentSession}
+          open={documentDrawerOpen}
+          onOpenChange={setDocumentDrawerOpen}
+          onCloseAnimationEnd={() => {
+            if (!documentDrawerOpen) setDocumentSession(null);
+          }}
+          openClosingDialog={closingDialogOpen}
+          onClosingDialogOpenChange={setClosingDialogOpen}
+          canClose={Boolean(
+            canCloseSession &&
+              documentSession.id === activeSession?.id &&
+              documentSession.status === 'OPEN',
+          )}
+          isClosing={closeMutation.isPending}
+          mockClosingData={mockClosingData[documentSession.id]}
+          onCloseSession={(values) => void handleCloseCashier(values)}
+        />
+      )}
     </div>
   );
 }
@@ -695,188 +648,6 @@ function Info({
         <p className="text-xs text-[var(--muted)]">{label}</p>
         <p className="mt-0.5 text-sm font-medium">{value}</p>
       </div>
-    </div>
-  );
-}
-
-function DocumentDetails({ session }: { session: CashierSession }) {
-  const transactionsQuery = useTransactionsQuery({
-    posSessionId: session.id,
-  });
-  const stockRows = compareStock(session);
-  const salesSummary = useMemo(
-    () =>
-      (transactionsQuery.data ?? [])
-        .filter((transaction) => transaction.status === 'complete')
-        .reduce(
-          (summary, transaction) => {
-            summary.total += transaction.total;
-            summary[transaction.paymentMethod] += transaction.total;
-            return summary;
-          },
-          { total: 0, cash: 0, qris: 0 },
-        ),
-    [transactionsQuery.data],
-  );
-  const columns: ColumnDef<(typeof stockRows)[number]>[] = [
-    {
-      accessorKey: 'name',
-      header: 'Item',
-      cell: ({ row }) => (
-        <>
-          <p className="font-medium">{row.original.name}</p>
-          <p className="text-xs text-[var(--muted)]">{row.original.itemId}</p>
-        </>
-      ),
-    },
-    {
-      accessorKey: 'openingQty',
-      header: () => <span className="block text-right">Opening stock</span>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          {row.original.openingQty} {row.original.uom}
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'soldQuantity',
-      header: () => <span className="block text-right">Sold</span>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          {row.original.soldQuantity === undefined
-            ? '—'
-            : `${row.original.soldQuantity} ${row.original.uom}`}
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'finalStockQty',
-      header: () => <span className="block text-right">Final stock</span>,
-      cell: ({ row }) => (
-        <div className="text-right">
-          {row.original.finalStockQty === undefined
-            ? '—'
-            : `${row.original.finalStockQty} ${row.original.uom}`}
-        </div>
-      ),
-    },
-  ];
-  const table = useReactTable({
-    data: stockRows,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
-  const mobileColumns: ColumnDef<(typeof stockRows)[number]>[] = [
-    {
-      accessorKey: 'name',
-      header: 'Item',
-      cell: ({ row }) => (
-        <div className="min-w-0">
-          <p className="truncate text-xs font-medium">{row.original.name}</p>
-          <p className="truncate text-[10px] text-[var(--muted)]">
-            {row.original.itemId}
-          </p>
-        </div>
-      ),
-    },
-    {
-      id: 'stockSummary',
-      enableSorting: false,
-      header: () => <span className="block text-right">Stock</span>,
-      cell: ({ row }) => (
-        <div className="text-right text-[10px] leading-4">
-          <p>Opening {row.original.openingQty}</p>
-          <p className="text-[var(--muted)]">
-            Sold {row.original.soldQuantity ?? '—'} · Final{' '}
-            {row.original.finalStockQty ?? '—'}
-          </p>
-        </div>
-      ),
-    },
-  ];
-  const mobileTable = useReactTable({
-    data: stockRows,
-    columns: mobileColumns,
-    getCoreRowModel: getCoreRowModel(),
-  });
-
-  return (
-    <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Info
-          icon={LogIn}
-          label="POS Opening · time"
-          value={formatDate(session.openedAt)}
-        />
-        <Info
-          icon={FileText}
-          label="POS Opening · cashier"
-          value={session.openedBy.username}
-        />
-        <Info
-          icon={Package}
-          label="Opening items"
-          value={String(session.openingStock.length)}
-        />
-        <Info
-          icon={LogOut}
-          label="POS Closing · time"
-          value={formatDate(session.closedAt)}
-        />
-        <Info
-          icon={FileText}
-          label="POS Closing · cashier"
-          value={session.closer?.username ?? 'Not closed'}
-        />
-      </div>
-      {transactionsQuery.isError ? (
-        <p className="text-sm text-[var(--status-danger)]" role="alert">
-          Failed to load session revenue:{' '}
-          {transactionsQuery.error instanceof Error
-            ? transactionsQuery.error.message
-            : 'Please try again.'}
-        </p>
-      ) : (
-        <div
-          aria-label="Session revenue summary"
-          className="grid overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--card)] sm:grid-cols-3"
-        >
-          {[
-            { label: 'Total revenue', value: salesSummary.total },
-            { label: 'Cash', value: salesSummary.cash },
-            { label: 'QRIS', value: salesSummary.qris },
-          ].map((item, index) => (
-            <div
-              key={item.label}
-              className={`px-4 py-3 ${
-                index > 0
-                  ? 'border-t border-[var(--border)] sm:border-l sm:border-t-0'
-                  : ''
-              }`}
-            >
-              <p className="text-xs text-[var(--muted)]">{item.label}</p>
-              <p className="mt-1 text-base font-semibold tabular-nums">
-                {transactionsQuery.isLoading
-                  ? 'Loading...'
-                  : formatCurrency(item.value)}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-      <DataTable
-        table={table}
-        emptyContent="No items were present in this stock snapshot."
-        containerClassName="hidden overflow-hidden rounded-[10px] border border-[var(--border)] md:block"
-        tableClassName="min-w-[600px]"
-      />
-      <DataTable
-        table={mobileTable}
-        emptyContent="No items were present in this stock snapshot."
-        containerClassName="overflow-hidden rounded-[10px] border border-[var(--border)] md:hidden"
-        tableClassName="table-fixed"
-      />
     </div>
   );
 }

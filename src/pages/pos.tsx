@@ -17,10 +17,12 @@ import {
   Keyboard,
   TriangleAlert,
   ChevronUp,
+  Printer,
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { AppButton } from '../components/ui/app-button';
+import { AppDialog } from '../components/ui/app-dialog';
 import { PageHeader } from '../components/ui/page-header';
 import { Card, CardContent, CardFooter } from '../components/ui/card';
 import { useCartStore } from '../stores/cart-store';
@@ -30,6 +32,7 @@ import { ApiError } from '@/lib/api/index';
 import { ProductGridSkeleton } from '../components/ui/skeleton';
 import { usePosProductsQuery } from '@/lib/product/product-store';
 import { useCreatePOSTransactionMutation } from '@/lib/transaction/transaction-store';
+import type { SalesInvoice } from '@/lib/transaction/transaction-types';
 import { useMeQuery } from '@/lib/auth/auth-store';
 import type { Product } from '../types/inde';
 
@@ -37,13 +40,15 @@ const paymentSteps = ['Cart', 'Payment', 'Review'] as const;
 type PaymentStep = 0 | 1 | 2;
 
 const WALK_IN_CUSTOMER = 'Walk-in Customer';
+const UNCATEGORIZED_CATEGORY_KEY = 'uncategorized';
 
 function getProductCategoryKey(
   product: Pick<Product, 'category' | 'categoryId'>,
 ) {
   if (product.categoryId) return `id:${product.categoryId}`;
-  if (product.category) return `name:${product.category}`;
-  return null;
+  const category = product.category?.trim();
+  if (category) return `name:${category}`;
+  return UNCATEGORIZED_CATEGORY_KEY;
 }
 
 function showInsufficientStockToast(description: string) {
@@ -146,12 +151,23 @@ export default function PosPage() {
   );
 
   const categoryOptions = useMemo(() => {
-    const categories = new Map<string, string>();
+    const categories = new Map<string, { name: string; count: number }>();
     for (const product of products) {
       const key = getProductCategoryKey(product);
-      if (key) categories.set(key, product.category || 'Uncategorized');
+      const category = categories.get(key);
+      if (category) {
+        category.count += 1;
+      } else {
+        categories.set(key, {
+          name: product.category?.trim() || 'Uncategorized',
+          count: 1,
+        });
+      }
     }
-    return [...categories].map(([id, name]) => ({ id, name }));
+    return [...categories].map(([id, category]) => ({
+      id,
+      ...category,
+    }));
   }, [products]);
 
   const handleAddProduct = (productId: string) => {
@@ -177,7 +193,7 @@ export default function PosPage() {
   return (
     <div className="flex h-[calc(100dvh-4rem)] flex-col overflow-hidden sm:h-[calc(100dvh-3.5rem)] xl:h-[calc(100dvh-6.5rem)] xl:flex-row xl:gap-4">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="shrink-0">
+        <div className="shrink-0 hidden sm:block">
           <PageHeader
             eyebrow="New sale"
             title="Point of sale"
@@ -207,31 +223,39 @@ export default function PosPage() {
           />
         </div>
 
-        <div className="shrink-0 pt-3">
-          <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="shrink-0 ">
+          <div
+            role="group"
+            aria-label="Filter products by category"
+            className="flex gap-6 overflow-x-auto border-b border-[var(--border)] px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             <button
               onClick={() => setSelectedCategoryKey(null)}
               aria-pressed={selectedCategoryKey === null}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition active:scale-95 ${
+              aria-label={`All (${products.length} products)`}
+              className={`relative shrink-0 whitespace-nowrap py-3 text-sm font-medium transition-colors ${
                 selectedCategoryKey === null
-                  ? 'bg-[var(--accent-strong)] text-white shadow-sm'
-                  : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:border-[var(--accent)]/40 hover:text-[var(--foreground)]'
+                  ? 'text-[var(--accent-strong)] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[var(--accent-strong)]'
+                  : 'text-[var(--muted)] hover:text-[var(--foreground)]'
               }`}
             >
               All
+              <span className="ml-1.5 tabular-nums">{products.length}</span>
             </button>
             {categoryOptions.map((category) => (
               <button
                 key={category.id}
                 onClick={() => setSelectedCategoryKey(category.id)}
                 aria-pressed={selectedCategoryKey === category.id}
-                className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition active:scale-95 ${
+                aria-label={`${category.name} (${category.count} products)`}
+                className={`relative shrink-0 whitespace-nowrap py-3 text-sm font-medium transition-colors ${
                   selectedCategoryKey === category.id
-                    ? 'bg-[var(--accent-strong)] text-white shadow-sm'
-                    : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:border-[var(--accent)]/40 hover:text-[var(--foreground)]'
+                    ? 'text-[var(--accent-strong)] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[var(--accent-strong)]'
+                    : 'text-[var(--muted)] hover:text-[var(--foreground)]'
                 }`}
               >
                 {category.name}
+                <span className="ml-1.5 tabular-nums">{category.count}</span>
               </button>
             ))}
           </div>
@@ -366,8 +390,8 @@ function ProductCard({
         )}
       </div>
 
-      <CardContent className="flex-1 px-3 pt-2.5 pb-2">
-        <p className="truncate text-sm font-semibold leading-snug">
+      <CardContent>
+        <p className="truncate text-sm uppercase font-bold leading-snug">
           {product.name}
         </p>
         {product.description && (
@@ -376,14 +400,14 @@ function ProductCard({
           </p>
         )}
         <div className="mt-2 flex items-center justify-between gap-1">
-          <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
+          <div className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
             {product.category || 'Uncategorized'}
-          </span>
-          <span
+          </div>
+          <div
             className={`text-[11px] font-medium ${isOutOfStock ? 'text-[var(--status-danger)]' : 'text-[var(--muted)]'}`}
           >
             {isOutOfStock ? 'Out of stock' : `Stock ${product.stock}`}
-          </span>
+          </div>
         </div>
       </CardContent>
 
@@ -436,11 +460,13 @@ function useCheckout({ products, storeId, settings, navigate }: CheckoutProps) {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris'>('cash');
   const [cashReceived, setCashReceived] = useState('');
   const [completedOrder, setCompletedOrder] = useState<{
+    transactionId: string;
     invoice: string;
     total: number;
     customer: string;
     paymentMethod: 'cash' | 'qris';
   } | null>(null);
+  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
 
   const cartQty = items.reduce((s, i) => s + i.quantity, 0);
   const cashReceivedNum = Number(cashReceived.replace(/\D/g, '')) || 0;
@@ -487,8 +513,9 @@ function useCheckout({ products, storeId, settings, navigate }: CheckoutProps) {
       });
       return;
     }
+    let transaction: SalesInvoice;
     try {
-      await createTransactionMutation.mutateAsync({
+      transaction = await createTransactionMutation.mutateAsync({
         paymentMethod,
         customer: customer || WALK_IN_CUSTOMER,
         items: items.map((item) => ({
@@ -513,24 +540,31 @@ function useCheckout({ products, storeId, settings, navigate }: CheckoutProps) {
       return;
     }
     setCompletedOrder({
-      invoice,
+      transactionId: transaction.id,
+      invoice: transaction.invoiceId,
       total,
       customer: customer || WALK_IN_CUSTOMER,
       paymentMethod,
     });
     clearCart();
     setStep(2);
-    toast.success(`Order ${invoice} placed`, {
-      description: `${formatRp(total)} · ${paymentMethod === 'cash' ? 'Cash' : 'QRIS'}`,
-    });
+    setSuccessDialogOpen(true);
   };
 
   const handleNewOrder = () => {
+    setSuccessDialogOpen(false);
     setCompletedOrder(null);
     setStep(0);
     setCustomer('');
     setPaymentMethod('cash');
     setCashReceived('');
+  };
+
+  const handlePrintReceipt = () => {
+    if (!completedOrder) return;
+    navigate(
+      `/transactions/print/${encodeURIComponent(completedOrder.transactionId)}`,
+    );
   };
 
   const handleContinue = () => {
@@ -562,9 +596,12 @@ function useCheckout({ products, storeId, settings, navigate }: CheckoutProps) {
     invoice,
     quickCashAmounts,
     completedOrder,
+    successDialogOpen,
+    setSuccessDialogOpen,
     handleIncQty,
     handlePlaceOrder,
     handleNewOrder,
+    handlePrintReceipt,
     handleContinue,
     isPending: createTransactionMutation.isPending,
   };
@@ -606,9 +643,12 @@ function CartContent({
     invoice,
     quickCashAmounts,
     completedOrder,
+    successDialogOpen,
+    setSuccessDialogOpen,
     handleIncQty,
     handlePlaceOrder,
     handleNewOrder,
+    handlePrintReceipt,
     handleContinue,
     isPending,
   } = checkout;
@@ -1022,6 +1062,59 @@ function CartContent({
           </p>
         )}
       </div>
+      <AppDialog
+        open={successDialogOpen && Boolean(completedOrder)}
+        onClose={() => setSuccessDialogOpen(false)}
+        title="Transaction successful"
+        description={
+          completedOrder
+            ? `Invoice ${completedOrder.invoice} has been placed.`
+            : undefined
+        }
+        size="sm"
+      >
+        {completedOrder && (
+          <div className="flex flex-col gap-5">
+            <div className="flex items-start gap-3 rounded-xl bg-[var(--surface-accent)] p-3.5">
+              <CheckCircle2
+                size={20}
+                className="mt-0.5 shrink-0 text-[var(--status-success)]"
+                aria-hidden="true"
+              />
+              <p className="text-sm leading-5 text-[var(--muted)]">
+                Payment received. You can print the receipt now or start a new
+                order.
+              </p>
+            </div>
+            <div className="space-y-2 rounded-[12px] bg-[var(--surface-muted)] p-4 text-sm">
+              <Row label="Customer" value={completedOrder.customer} />
+              <Row
+                label="Payment"
+                value={
+                  completedOrder.paymentMethod === 'cash' ? 'Cash' : 'QRIS'
+                }
+              />
+              <Row label="Invoice" value={completedOrder.invoice} />
+              <div className="flex justify-between border-t border-[var(--border)] pt-2 font-semibold">
+                <span>Total paid</span>
+                <span className="text-[var(--accent)]">
+                  {formatRp(completedOrder.total)}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <AppButton variant="secondary" onClick={handleNewOrder}>
+                <RotateCcw size={14} />
+                New order
+              </AppButton>
+              <AppButton onClick={handlePrintReceipt}>
+                <Printer size={15} />
+                Print receipt
+              </AppButton>
+            </div>
+          </div>
+        )}
+      </AppDialog>
     </div>
   );
 }
@@ -1049,6 +1142,9 @@ function CartPanel(props: CheckoutProps) {
 function CartDrawer(props: CheckoutProps) {
   const checkout = useCheckout(props);
   const [open, setOpen] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const dragStartRef = useRef<{ y: number; time: number } | null>(null);
+  const skipToggleRef = useRef(false);
   const { cartQty, total } = checkout;
 
   // Auto-close when cart empties
@@ -1056,35 +1152,81 @@ function CartDrawer(props: CheckoutProps) {
     if (cartQty === 0) setOpen(false);
   }, [cartQty]);
 
-  // Only mount when there are items
-  if (cartQty === 0) return null;
+  // Keep the drawer mounted after checkout so its success dialog can render.
+  if (cartQty === 0 && !checkout.completedOrder) return null;
 
   return (
     <>
       {/* Backdrop */}
-      {open && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm xl:hidden"
-          onClick={() => setOpen(false)}
-        />
-      )}
+      <div
+        aria-hidden="true"
+        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-200 ease-out motion-reduce:transition-none xl:hidden ${
+          open
+            ? 'pointer-events-auto opacity-100'
+            : 'pointer-events-none opacity-0'
+        }`}
+        onClick={() => setOpen(false)}
+      />
 
       {/* Drawer */}
       <div
-        className={`fixed inset-x-0 bottom-0 z-50 flex flex-col xl:hidden`}
+        data-testid="current-order-drawer"
+        className="fixed inset-x-0 bottom-0 z-50 flex flex-col overflow-hidden transition-[height,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none xl:hidden"
         style={{
           maxHeight: '90dvh',
-          ...(open ? { height: 'min(90dvh, calc(100dvh - 1rem))' } : {}),
+          height: open ? 'min(90dvh, calc(100dvh - 1rem))' : '4.5rem',
+          transform: `translateY(${dragOffset}px)`,
+          transitionDuration: dragStartRef.current ? '0ms' : undefined,
         }}
       >
         {/* Collapsed bar — always visible when cart has items */}
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-center gap-3 rounded-t-[20px] border border-b-0 border-[var(--border)] bg-[var(--band-bg)] px-4 py-3 text-left shadow-[0_-4px_24px_rgba(0,0,0,0.18)]"
+          onClick={() => {
+            if (skipToggleRef.current) {
+              skipToggleRef.current = false;
+              return;
+            }
+            setOpen((value) => !value);
+          }}
+          onPointerDown={(event) => {
+            if (!open || !event.isPrimary) return;
+            dragStartRef.current = {
+              y: event.clientY,
+              time: performance.now(),
+            };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={(event) => {
+            if (!dragStartRef.current) return;
+            setDragOffset(Math.max(0, event.clientY - dragStartRef.current.y));
+          }}
+          onPointerUp={(event) => {
+            const start = dragStartRef.current;
+            if (!start) return;
+
+            const distance = Math.max(0, event.clientY - start.y);
+            const elapsed = Math.max(1, performance.now() - start.time);
+            const shouldClose =
+              distance > 96 || (distance > 30 && distance / elapsed > 0.55);
+            dragStartRef.current = null;
+            setDragOffset(0);
+
+            if (distance > 8) {
+              skipToggleRef.current = true;
+              if (shouldClose) setOpen(false);
+            }
+          }}
+          onPointerCancel={() => {
+            dragStartRef.current = null;
+            setDragOffset(0);
+          }}
+          className="relative z-10 flex w-full shrink-0 touch-none items-center gap-3 rounded-t-[20px] border border-b-0 border-[var(--border)] bg-[var(--band-bg)] px-4 pt-5 pb-3 text-left shadow-[0_-4px_24px_rgba(0,0,0,0.18)]"
         >
-          {/* Drag handle */}
-          {/* <span className="absolute left-1/2 top-2 h-1 w-10 -translate-x-1/2 rounded-full bg-white/20" /> */}
+          <span
+            aria-hidden="true"
+            className="absolute top-2 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-white/35"
+          />
 
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-white/10 text-white">
             <ShoppingBag size={17} />
@@ -1099,8 +1241,10 @@ function CartDrawer(props: CheckoutProps) {
                 {cartQty}
               </span>
             </span>
-            <span className="block text-[11px] text-white/60">
-              Tap to {open ? 'collapse' : 'checkout'}
+            <span className="block text-[11px] text-white/70">
+              {open
+                ? 'Tap to collapse · drag down to close'
+                : 'Tap to checkout'}
             </span>
           </span>
 
@@ -1119,11 +1263,18 @@ function CartDrawer(props: CheckoutProps) {
         </button>
 
         {/* Expanded content */}
-        {open && (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-x border-[var(--border)] bg-[var(--card)]">
-            <CartContent checkout={checkout} products={props.products} />
-          </div>
-        )}
+        <div
+          data-testid="current-order-content"
+          aria-hidden={!open}
+          inert={!open}
+          className={`flex min-h-0 flex-col overflow-hidden border-x border-[var(--border)] bg-[var(--card)] transition-[flex-grow,opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
+            open
+              ? 'flex-1 translate-y-0 opacity-100'
+              : 'flex-none translate-y-2 opacity-0'
+          }`}
+        >
+          <CartContent checkout={checkout} products={props.products} />
+        </div>
       </div>
     </>
   );

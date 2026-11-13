@@ -45,7 +45,9 @@ function isNavActive(itemHref: string, pathname: string): boolean {
   return pathname === itemHref || pathname.startsWith(`${itemHref}/`);
 }
 
-function isSubGroup(item: MenuSubItem): item is Extract<MenuSubItem, { childItems: unknown }> {
+function isSubGroup(
+  item: MenuSubItem,
+): item is Extract<MenuSubItem, { childItems: unknown }> {
   return 'childItems' in item;
 }
 
@@ -240,7 +242,9 @@ function SidebarNavItem({
         className="gap-3 rounded-2xl px-3 py-3 text-sm [&_svg]:size-[18px] data-[active=true]:bg-[var(--accent)]/15 data-[active=true]:text-[var(--accent)] group-data-[collapsible=icon]:justify-center"
       >
         <Icon />
-        <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
+        <span className="group-data-[collapsible=icon]:hidden">
+          {item.label}
+        </span>
         <ChevronDown
           size={14}
           className={`ml-auto transition-transform ${expanded ? 'rotate-180' : ''}`}
@@ -258,7 +262,9 @@ function visibleNavGroups(groups: NavItem[], currentUser: AuthUser | null) {
       items: group.items.filter(
         (item) =>
           !item.roles ||
-          Boolean(currentUser && item.roles.includes(currentUser.role)),
+          Boolean(
+            currentUser?.store && item.roles.includes(currentUser.store.role),
+          ),
       ),
     }))
     .filter((group) => group.items.length > 0);
@@ -314,9 +320,7 @@ export default function Sidebar({ currentUser }: SidebarProps) {
             <p className="truncate text-sm font-semibold">
               {storeQuery.data?.name ?? 'POS Studio'}
             </p>
-            <p className="truncate text-xs text-[var(--muted)]">
-              POS
-            </p>
+            <p className="truncate text-xs text-[var(--muted)]">POS</p>
           </div>
         </div>
       </SidebarHeader>

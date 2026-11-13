@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Fragment } from 'react';
 import { Link, useLocation } from 'react-router';
-import { Bell, LogOut, Moon, Settings, Sun, Users } from 'lucide-react';
+import { Bell, LogOut, Moon, Settings, Store, Sun, Users } from 'lucide-react';
 import type { AuthUser } from '@/lib/auth/auth-store';
 import { useLogoutMutation } from '@/lib/auth/auth-store';
 import { useUIStore } from '@/stores/ui-store';
@@ -96,7 +96,7 @@ function UserAvatar({ name }: { name: string }) {
   return (
     <div
       aria-hidden="true"
-      className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--surface-accent)] text-sm font-semibold text-[var(--accent)] ring-1 ring-[var(--border)]"
+      className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface-accent)] text-sm font-semibold text-[var(--accent)] ring-1 ring-[var(--border)]"
     >
       {initials}
     </div>
@@ -273,9 +273,9 @@ export default function Header({ currentUser, isDark, theme }: HeaderProps) {
               {headerPanel === 'profile' && (
                 <div
                   id="header-profile"
-                  className="absolute right-0 top-12 z-50 w-[min(19rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-xl"
+                  className="absolute right-0 top-12 z-50 w-[min(14rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-xl"
                 >
-                  <div className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-4">
+                  <div className="flex items-center gap-3 border-b border-[var(--border)] px-2 py-2">
                     <UserAvatar name={currentUser.username} />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">
@@ -286,31 +286,31 @@ export default function Header({ currentUser, isDark, theme }: HeaderProps) {
                       </p>
                     </div>
                   </div>
-                  <div className="space-y-1 border-b border-[var(--border)] p-2">
-                    <Link
-                      to="/setting"
-                      onClick={() => setHeaderPanel(null)}
-                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition hover:bg-[var(--surface-muted)]"
-                    >
-                      <Settings size={17} className="text-[var(--muted)]" />
-                      <span>Settings</span>
-                    </Link>
-                    {currentUser.role === 'ADMIN' && (
+                  {currentUser.store?.role === 'admin' && (
+                    <div className="space-y-1 border-b border-[var(--border)]">
                       <Link
-                        to="/users"
+                        to="/setting"
                         onClick={() => setHeaderPanel(null)}
                         className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition hover:bg-[var(--surface-muted)]"
                       >
-                        <Users size={17} className="text-[var(--muted)]" />
-                        <span>Manage team</span>
+                        <Settings size={17} className="text-[var(--muted)]" />
+                        <span>Settings</span>
                       </Link>
-                    )}
-                  </div>
-                  <div className="p-2">
+                      <Link
+                        to="/select-store"
+                        onClick={() => setHeaderPanel(null)}
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition hover:bg-[var(--surface-muted)]"
+                      >
+                        <Store size={17} className="text-[var(--muted)]" />
+                        <span>Manage Store</span>
+                      </Link>
+                    </div>
+                  )}
+                  <div className="p-1 transition hover:bg-[var(--status-danger)]/5">
                     <button
                       type="button"
                       onClick={logout}
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--status-danger)] transition hover:bg-[var(--status-danger)]/5"
+                      className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-sm font-medium text-[var(--status-danger)]"
                     >
                       <LogOut size={17} />
                       <span>Logout</span>

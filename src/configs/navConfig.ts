@@ -1,5 +1,4 @@
-
-import type { ApiUserRole } from '@/types/api';
+import type { ApiStoreRole } from '@/types/api';
 import {
   ClipboardCheck,
   ClipboardList,
@@ -47,7 +46,7 @@ export type MenuSubItem = MenuLeafSubItem | MenuGroupSubItem;
 export type MenuItem = {
   icon: IconName;
   label: string;
-  roles?: ApiUserRole[];
+  roles?: ApiStoreRole[];
 } & (
   | {
       href: string;
@@ -69,8 +68,6 @@ export type NavItem = {
   items: MenuItem[];
 };
 
-
-
 export const navItems: NavItem[] = [
   {
     groupLabel: 'Overview',
@@ -79,7 +76,7 @@ export const navItems: NavItem[] = [
         href: '/',
         label: 'Dashboard',
         icon: 'LayoutGrid',
-        roles: ['ADMIN'],
+        roles: ['admin'],
       },
     ],
   },
@@ -100,13 +97,13 @@ export const navItems: NavItem[] = [
         href: '/stock-ledger',
         label: 'Stock Ledger',
         icon: 'ClipboardList',
-        roles: ['ADMIN'],
+        roles: ['admin'],
       },
       {
         href: '/stock-adjustment',
         label: 'Stock Adjustment',
         icon: 'SlidersHorizontal',
-        roles: ['ADMIN'],
+        roles: ['admin'],
       },
     ],
   },
@@ -133,13 +130,13 @@ export const navItems: NavItem[] = [
         href: '/users',
         label: 'Users',
         icon: 'Users',
-        roles: ['ADMIN'],
+        roles: ['admin'],
       },
       {
         href: '/setting',
         label: 'Settings',
         icon: 'Settings',
-        roles: ['ADMIN'],
+        roles: ['admin'],
       },
     ],
   },

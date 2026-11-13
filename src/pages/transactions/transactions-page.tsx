@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   Search,
@@ -21,9 +21,8 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { PageHeader } from '@/components/ui/page-header';
 import { RowActions } from '@/components/ui/row-actions';
 import { SectionCard } from '@/components/ui/section-card';
-import { AppSelect } from '@/components/ui/app-select';
+import { TablePagination } from '@/components/ui/table-pagination';
 import { TransactionsTable } from './transactions-table';
-import { TransactionsPagination } from './transactions-pagination';
 import { TransactionDetailDrawer } from './transaction-detail-drawer';
 import {
   getCoreRowModel,
@@ -40,11 +39,12 @@ import {
   createDefaultTransactionFilters,
   filterTransactions,
   formatRp,
-  getUniqueValues,
   statusStyles,
+  statusMobileIcon,
   todayIso,
   type TransactionFilters,
 } from '@/lib/transaction-utils';
+import type { SalesInvoiceDateFilters } from '@/lib/transaction/transaction-types';
 
 import type { Transaction } from '@/lib/transaction/transaction-types';
 import { Link } from 'react-router';
@@ -53,13 +53,12 @@ import { useCashierSessionsQuery } from '@/lib/cashier-sessions/cashier-sessions
 import {
   useCompleteTransactionMutation,
   useDeleteTransactionMutation,
-  useTransactionsQuery,
+  useTransactionsPageQuery,
 } from '@/lib/transaction/transaction-store';
 
-type DatePreset = 'all' | 'today' | 'week' | 'month' | 'custom';
+type DatePreset = 'today' | 'week' | 'month' | 'custom';
 
 const datePresets: { id: DatePreset; label: string }[] = [
-  { id: 'all', label: 'All time' },
   { id: 'today', label: 'Today' },
   { id: 'week', label: 'Last 7 days' },
   { id: 'month', label: 'Last 30 days' },
@@ -74,10 +73,6 @@ export default function TransactionsPage() {
   const hasActivePosSession = Boolean(
     cashierSessionsQuery.data?.some((session) => session.status === 'OPEN'),
   );
-  const transactionsQuery = useTransactionsQuery();
-  const deleteTransactionMutation = useDeleteTransactionMutation();
-  const completeTransactionMutation = useCompleteTransactionMutation();
-  const transactions = transactionsQuery.data ?? [];
   const navigate = useNavigate();
 
   const [filters, setFilters] = useState<TransactionFilters>(
@@ -97,14 +92,60 @@ export default function TransactionsPage() {
     pageIndex: 0,
     pageSize: 10,
   });
-
-  const { customers, cashiers } = useMemo(
-    () => getUniqueValues(transactions),
-    [transactions],
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const dateFilters: Partial<SalesInvoiceDateFilters> = (() => {
+    if (datePreset === 'today') {
+      return { dateRange: 'today', timezone: timeZone };
+    }
+    if (datePreset === 'month') {
+      return { dateRange: 'last30days', timezone: timeZone };
+    }
+    if (
+      (datePreset === 'week' || datePreset === 'custom') &&
+      filters.dateFrom &&
+      filters.dateTo
+    ) {
+      return {
+        dateRange: 'custom',
+        timezone: timeZone,
+        startDate: filters.dateFrom,
+        endDate: filters.dateTo,
+      };
+    }
+    return {};
+  })();
+  const transactionsQuery = useTransactionsPageQuery(
+    pagination.pageIndex + 1,
+    pagination.pageSize,
+    dateFilters,
   );
+  const deleteTransactionMutation = useDeleteTransactionMutation();
+  const completeTransactionMutation = useCompleteTransactionMutation();
+  const transactions = transactionsQuery.data?.rows ?? [];
+  const totalTransactions = transactionsQuery.data?.count ?? 0;
+  useEffect(() => {
+    if (!transactionsQuery.data) return;
+    const lastPageIndex = Math.max(
+      0,
+      Math.ceil(totalTransactions / pagination.pageSize) - 1,
+    );
+    if (pagination.pageIndex > lastPageIndex) {
+      setPagination((current) => ({ ...current, pageIndex: lastPageIndex }));
+    }
+  }, [
+    pagination.pageIndex,
+    pagination.pageSize,
+    totalTransactions,
+    transactionsQuery.data,
+  ]);
 
   const filteredTransactions = useMemo(
-    () => filterTransactions(transactions, filters),
+    () =>
+      filterTransactions(transactions, {
+        ...filters,
+        dateFrom: '',
+        dateTo: '',
+      }),
     [transactions, filters],
   );
 
@@ -139,9 +180,7 @@ export default function TransactionsPage() {
 
   const applyDatePreset = (preset: DatePreset) => {
     setDatePreset(preset);
-    if (preset === 'all') {
-      setFilters((prev) => ({ ...prev, dateFrom: '', dateTo: '' }));
-    } else if (preset === 'today') {
+    if (preset === 'today') {
       setFilters((prev) => ({
         ...prev,
         dateFrom: todayIso(),
@@ -296,25 +335,24 @@ export default function TransactionsPage() {
         accessorKey: 'customer',
         header: 'Customer',
         cell: ({ row }) => (
-          <div className="min-w-0 overflow-hidden">
-            <p className="truncate text-sm font-semibold">
-              {row.original.customer}
-            </p>
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="min-w-0 truncate text-sm font-semibold">
+                {row.original.customer}
+              </p>
+              <span
+                role="img"
+                aria-label={`Status: ${row.original.status}`}
+                title={row.original.status}
+                className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--surface-muted)] ${statusStyles[row.original.status]}`}
+              >
+                {statusMobileIcon[row.original.status]}
+              </span>
+            </div>
             <p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">
               {row.original.cashier} · {row.original.date}
             </p>
           </div>
-        ),
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        cell: ({ row }) => (
-          <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${statusStyles[row.original.status]}`}
-          >
-            {row.original.status}
-          </span>
         ),
       },
       {
@@ -331,50 +369,50 @@ export default function TransactionsPage() {
           </div>
         ),
       },
-      {
-        accessorKey: 'recordedAt',
-        id: 'date',
-        header: 'Date',
-        enableHiding: true,
-        cell: ({ row }) => row.original.recordedAt,
-      },
-      {
-        id: 'actions',
-        enableSorting: false,
-        header: '',
-        cell: ({ row }) => (
-          <div
-            className="text-right"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <RowActions
-              label={`Actions for ${row.original.invoice}`}
-              actions={[
-                {
-                  label: 'View',
-                  icon: Eye,
-                  href: `/transactions/${row.original.id}`,
-                },
-                ...(row.original.status === 'pending'
-                  ? [
-                      {
-                        label: 'Set complete',
-                        icon: CheckCircle2,
-                        onClick: () => void handleComplete(row.original),
-                      },
-                    ]
-                  : []),
-                {
-                  label: 'Delete',
-                  icon: Trash2,
-                  danger: true,
-                  onClick: () => openDelete(row.original),
-                },
-              ]}
-            />
-          </div>
-        ),
-      },
+      // {
+      //   accessorKey: 'recordedAt',
+      //   id: 'date',
+      //   header: 'Date',
+      //   enableHiding: true,
+      //   cell: ({ row }) => row.original.date,
+      // },
+      // {
+      //   id: 'actions',
+      //   enableSorting: false,
+      //   header: '',
+      //   cell: ({ row }) => (
+      //     <div
+      //       className="text-right"
+      //       onClick={(event) => event.stopPropagation()}
+      //     >
+      //       <RowActions
+      //         label={`Actions for ${row.original.invoice}`}
+      //         actions={[
+      //           {
+      //             label: 'View',
+      //             icon: Eye,
+      //             href: `/transactions/${row.original.id}`,
+      //           },
+      //           ...(row.original.status === 'pending'
+      //             ? [
+      //                 {
+      //                   label: 'Set complete',
+      //                   icon: CheckCircle2,
+      //                   onClick: () => void handleComplete(row.original),
+      //                 },
+      //               ]
+      //             : []),
+      //           {
+      //             label: 'Delete',
+      //             icon: Trash2,
+      //             danger: true,
+      //             onClick: () => openDelete(row.original),
+      //           },
+      //         ]}
+      //       />
+      //     </div>
+      //   ),
+      // },
     ],
     [handleComplete, openDelete],
   );
@@ -390,6 +428,8 @@ export default function TransactionsPage() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    manualPagination: true,
+    rowCount: totalTransactions,
     getRowId: (transaction) => transaction.id,
   });
   const mobileTable = useReactTable({
@@ -404,6 +444,8 @@ export default function TransactionsPage() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    manualPagination: true,
+    rowCount: totalTransactions,
     getRowId: (transaction) => transaction.id,
   });
 
@@ -428,7 +470,7 @@ export default function TransactionsPage() {
       <PageHeader
         eyebrow="Sales history"
         title="Transactions"
-        description={`${summary.count} orders · ${formatRp(summary.total)} revenue`}
+        description={`${summary.count} matching orders on this page · ${formatRp(summary.total)} page revenue`}
         action={
           hasActivePosSession && !cashierSessionsQuery.isError ? (
             <Link to="/pos">
@@ -442,32 +484,33 @@ export default function TransactionsPage() {
       />
 
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-3">
-        <SummaryTile label="Total orders" value={String(summary.count)} />
-        <SummaryTile label="Revenue" value={formatRp(summary.total)} accent />
+        <SummaryTile label="Orders on page" value={String(summary.count)} />
         <SummaryTile
-          label="Pending"
+          label="Page revenue"
+          value={formatRp(summary.total)}
+          accent
+        />
+        <SummaryTile
+          label="Pending on page"
           value={String(summary.pending)}
           warning={summary.pending > 0}
         />
         {}
         <SummaryTile
-          label="Qris"
+          label="Qris on page"
           value={String(summary.qris)}
           warning={summary.qris > 0}
           accent
         />
         <SummaryTile
-          label="Cash"
+          label="Cash on page"
           value={String(summary.cash)}
           warning={summary.cash > 0}
           accent
         />
       </div>
 
-      <SectionCard
-        title="Transaction log"
-        description="Filter by date, customer, status, payment method, and more."
-      >
+      <SectionCard title="Transaction log">
         <label className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm">
           <Search size={16} className="text-[var(--muted)]" />
           <input
@@ -482,6 +525,7 @@ export default function TransactionsPage() {
           <button
             type="button"
             onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
             className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
           >
             <span className="flex items-center gap-2">
@@ -525,48 +569,16 @@ export default function TransactionsPage() {
                     <DateRangePicker
                       value={{ from: filters.dateFrom, to: filters.dateTo }}
                       onChange={({ from, to }) => {
+                        if (!from || !to) {
+                          applyDatePreset('today');
+                          return;
+                        }
                         updateFilter('dateFrom', from);
                         updateFilter('dateTo', to);
                       }}
                     />
                   </div>
                 )}
-              </div>
-
-              {/* Customer & Cashier */}
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm">
-                  <span className="mb-1 block text-[var(--muted)]">
-                    Customer
-                  </span>
-                  <AppSelect
-                    value={filters.customer}
-                    onValueChange={(value) => updateFilter('customer', value)}
-                    options={[
-                      { value: 'all', label: 'All customers' },
-                      ...customers.map((customer) => ({
-                        value: customer,
-                        label: customer,
-                      })),
-                    ]}
-                  />
-                </label>
-                <label className="text-sm">
-                  <span className="mb-1 block text-[var(--muted)]">
-                    Cashier
-                  </span>
-                  <AppSelect
-                    value={filters.cashier}
-                    onValueChange={(value) => updateFilter('cashier', value)}
-                    options={[
-                      { value: 'all', label: 'All cashiers' },
-                      ...cashiers.map((cashier) => ({
-                        value: cashier,
-                        label: cashier,
-                      })),
-                    ]}
-                  />
-                </label>
               </div>
 
               {/* Status & Payment */}
@@ -619,40 +631,27 @@ export default function TransactionsPage() {
                   className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--status-danger)] transition hover:opacity-80"
                 >
                   <X size={14} />
-                  Clear all filters
+                  Reset filters
                 </button>
               )}
             </div>
           )}
         </div>
 
-        {filteredTransactions.length > 0 && (
+        {filteredTransactions.length > 0 ? (
           <>
             <TransactionsTable
               desktopTable={desktopTable}
               mobileTable={mobileTable}
               onRowClick={openDetail}
             />
-            <TransactionsPagination
-              pageIndex={pagination.pageIndex}
-              pageSize={pagination.pageSize}
-              totalItems={filteredTransactions.length}
-              onPageIndexChange={(pageIndex) =>
-                setPagination((current) => ({ ...current, pageIndex }))
-              }
-              onPageSizeChange={(pageSize) =>
-                setPagination({ pageIndex: 0, pageSize })
-              }
-            />
           </>
-        )}
-
-        {filteredTransactions.length === 0 && (
+        ) : (
           <div className="mt-6 flex flex-col items-center justify-center rounded-[12px] border border-dashed border-[var(--border)] p-8 text-center">
             <ReceiptText className="mb-3 text-[var(--accent)]" size={28} />
-            <p className="font-medium">No transactions found</p>
+            <p className="font-medium">No transactions found on this page</p>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Try adjusting your search or filters.
+              Try another page, search, or filter.
             </p>
             {activeFilterCount > 0 && (
               <button onClick={clearFilters} className="mt-4">
@@ -660,6 +659,36 @@ export default function TransactionsPage() {
               </button>
             )}
           </div>
+        )}
+        {totalTransactions > 0 && (
+          <>
+            <div className="hidden md:block">
+              <TablePagination
+                table={desktopTable}
+                pagination={pagination}
+                totalItems={totalTransactions}
+                onPageChange={(pageIndex) =>
+                  setPagination((current) => ({ ...current, pageIndex }))
+                }
+                onPageSizeChange={(pageSize) =>
+                  setPagination({ pageIndex: 0, pageSize })
+                }
+              />
+            </div>
+            <div className="md:hidden">
+              <TablePagination
+                table={mobileTable}
+                pagination={pagination}
+                totalItems={totalTransactions}
+                onPageChange={(pageIndex) =>
+                  setPagination((current) => ({ ...current, pageIndex }))
+                }
+                onPageSizeChange={(pageSize) =>
+                  setPagination({ pageIndex: 0, pageSize })
+                }
+              />
+            </div>
+          </>
         )}
       </SectionCard>
 

@@ -9,6 +9,8 @@ import type {
 export const itemCategoryQueryKeys = {
   all: ['item-categories'] as const,
   list: (storeId?: string) => [...itemCategoryQueryKeys.all, storeId] as const,
+  page: (storeId: string | undefined, page: number, limit: number) =>
+    [...itemCategoryQueryKeys.list(storeId), page, limit] as const,
 };
 
 export function useItemCategoriesQuery() {
@@ -20,13 +22,23 @@ export function useItemCategoriesQuery() {
   });
 }
 
+export function useItemCategoriesPageQuery(page: number, limit: number) {
+  const storeId = useMeQuery().data?.store?.storeId;
+  return useQuery({
+    queryKey: itemCategoryQueryKeys.page(storeId, page, limit),
+    queryFn: () => itemCategoriesApi.listPage(storeId!, page, limit),
+    enabled: Boolean(storeId),
+  });
+}
+
 export function useCreateItemCategoryMutation() {
   const queryClient = useQueryClient();
   const storeId = useMeQuery().data?.store?.storeId;
 
   return useMutation({
     mutationFn: (body: CreateStoreItemCategoryDto) => {
-      if (!storeId) throw new Error('Select a store before creating categories.');
+      if (!storeId)
+        throw new Error('Select a store before creating categories.');
       return itemCategoriesApi.create(storeId, body);
     },
     onSuccess: async (category) => {
@@ -53,7 +65,8 @@ export function useDeleteItemCategoryMutation() {
 
   return useMutation({
     mutationFn: (categoryId: string) => {
-      if (!storeId) throw new Error('Select a store before deleting categories.');
+      if (!storeId)
+        throw new Error('Select a store before deleting categories.');
       return itemCategoriesApi.remove(storeId, categoryId);
     },
     onSuccess: () => {

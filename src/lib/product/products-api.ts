@@ -21,6 +21,15 @@ export const productsApi = {
     Api.get<SellableItemResponse[]>(sellableItemsPath(storeId)).then(
       (response) => response.data,
     ),
+  listPage: (
+    storeId: string,
+    page: number,
+    limit: number,
+    filters: ItemFilters = {},
+  ) =>
+    Api.get<PaginatedResponse<ApiItem>>(storeItemsPath(storeId), {
+      params: { ...filters, page, limit },
+    }).then((response) => response.data),
   list: async (storeId: string, filters: ItemFilters = {}) => {
     return fetchAllPages((page, limit) =>
       Api.get<PaginatedResponse<ApiItem>>(storeItemsPath(storeId), {

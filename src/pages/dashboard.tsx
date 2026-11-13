@@ -1,16 +1,12 @@
 import { useMemo, useState } from 'react';
 import {
-  AlertTriangle,
-  ArrowRight,
   CalendarRange,
   ChartNoAxesCombined,
-  CheckCircle2,
   Radio,
   RefreshCw,
   ShoppingCart,
   TrendingUp,
 } from 'lucide-react';
-import { Link } from 'react-router';
 import {
   Area,
   AreaChart,
@@ -27,7 +23,6 @@ import {
   YAxis,
 } from 'recharts';
 
-import { AppButton } from '@/components/ui/app-button';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -151,14 +146,6 @@ export default function Home() {
   const productsQuery = useProductsQuery();
   const rawProducts = productsQuery.data?.rows ?? [];
   const products = useMemo(() => rawProducts.map(mapProduct), [rawProducts]);
-  const stockWatchItems = useMemo(
-    () =>
-      products
-        .filter((product) => product.stock <= 5)
-        .sort((a, b) => a.stock - b.stock || a.name.localeCompare(b.name))
-        .slice(0, 3),
-    [products],
-  );
 
   // ---------------------------------------------------------------------------
   // Period filter
@@ -626,117 +613,6 @@ export default function Home() {
           }
         />
       </div>
-
-      <section
-        aria-labelledby="stock-watch-title"
-        aria-busy={productsQuery.isLoading}
-        className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.08)] sm:p-5"
-      >
-        <h2 id="stock-watch-title" className="sr-only">
-          Inventory stock watch
-        </h2>
-        {productsQuery.isLoading ? (
-          <div className="flex min-h-12 items-center gap-3" role="status">
-            <div className="size-9 animate-pulse rounded-lg bg-[var(--surface-muted)]" />
-            <div className="space-y-2">
-              <div className="h-4 w-32 animate-pulse rounded bg-[var(--surface-muted)]" />
-              <div className="h-3 w-48 max-w-[60vw] animate-pulse rounded bg-[var(--surface-muted)]" />
-            </div>
-            <span className="sr-only">Loading inventory status</span>
-          </div>
-        ) : productsQuery.isError ? (
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <AlertTriangle
-                size={19}
-                className="mt-0.5 shrink-0 text-[var(--status-danger)]"
-                aria-hidden="true"
-              />
-              <div>
-                <h2 className="font-semibold">Stock status unavailable</h2>
-                <p className="mt-1 text-sm text-[var(--muted)]">
-                  Inventory could not be loaded. Try again to check for
-                  low-stock items.
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void productsQuery.refetch()}
-              className="min-h-10 self-start sm:self-auto"
-            >
-              <RefreshCw size={14} aria-hidden="true" />
-              Retry
-            </Button>
-          </div>
-        ) : stockWatchItems.length > 0 ? (
-          <div className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <AlertTriangle
-                  size={19}
-                  className="mt-0.5 shrink-0 text-[var(--status-pending)]"
-                  aria-hidden="true"
-                />
-                <div>
-                  <h2 className="font-semibold">Stock needs attention</h2>
-                  <p className="mt-1 text-sm text-[var(--muted)]">
-                    {metrics.outOfStock} out of stock · {metrics.lowStock} low
-                    stock
-                  </p>
-                </div>
-              </div>
-              <Link
-                to="/products"
-                className="inline-flex min-h-10 items-center gap-2 self-start rounded-lg px-3 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] sm:self-auto"
-              >
-                Review inventory
-                <ArrowRight size={15} aria-hidden="true" />
-              </Link>
-            </div>
-            <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {stockWatchItems.map((product) => (
-                <li key={product.id}>
-                  <Link
-                    to={`/products/${product.id}`}
-                    className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-[var(--border)] px-3 py-2 transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                  >
-                    <span className="min-w-0 truncate text-sm font-medium">
-                      {product.name}
-                    </span>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums ${
-                        product.stock === 0
-                          ? 'bg-[var(--status-danger)]/10 text-[var(--status-danger)]'
-                          : 'bg-[var(--status-pending)]/15 text-[var(--foreground)]'
-                      }`}
-                    >
-                      {product.stock === 0
-                        ? 'Out of stock'
-                        : `${product.stock} left`}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <div className="flex min-h-12 items-center gap-3">
-            <CheckCircle2
-              size={19}
-              className="shrink-0 text-[var(--status-success)]"
-              aria-hidden="true"
-            />
-            <div>
-              <h2 className="font-semibold">Stock looks healthy</h2>
-              <p className="mt-1 text-sm text-[var(--muted)]">
-                No items are at or below 5 units.
-              </p>
-            </div>
-          </div>
-        )}
-      </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
         <Card className="min-w-0 overflow-hidden border-[var(--border)] bg-[var(--card)]">
@@ -1479,84 +1355,6 @@ export default function Home() {
           )}
         </CardContent>
       </Card>
-
-      {/* Recent transactions */}
-      <SectionCard
-        title="Recent transactions"
-        description="Latest activity within the selected date range."
-      >
-        <div className="space-y-3">
-          {transactionsQuery.isLoading ? (
-            <div
-              className="rounded-[12px] border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]"
-              role="status"
-            >
-              Loading recent transactions…
-            </div>
-          ) : transactionsQuery.isError ? (
-            <div className="flex flex-col items-center gap-3 rounded-[12px] border border-dashed border-[var(--border)] p-6 text-center">
-              <p className="text-sm text-[var(--status-danger)]" role="alert">
-                Recent transactions could not be loaded.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void transactionsQuery.refetch()}
-                className="min-h-10"
-              >
-                <RefreshCw size={14} aria-hidden="true" />
-                Retry
-              </Button>
-            </div>
-          ) : recentTransactions.length === 0 ? (
-            <div className="rounded-[12px] border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">
-              No transactions in this period.
-            </div>
-          ) : (
-            recentTransactions.map((tx) => (
-              <Link
-                key={tx.id}
-                to={`/transactions/${tx.id}`}
-                className="flex min-h-14 items-center justify-between gap-3 rounded-[12px] border border-[var(--border)] p-3 transition-colors hover:border-[var(--accent)]/40 hover:bg-[var(--surface-muted)]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate font-medium">{tx.invoice}</p>
-
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                        tx.status === 'complete'
-                          ? 'bg-[var(--surface-accent)] text-[var(--status-success)]'
-                          : 'bg-[var(--status-pending)]/15 text-[var(--status-pending)]'
-                      }`}
-                    >
-                      {tx.status}
-                    </span>
-                  </div>
-
-                  <p className="truncate text-sm text-[var(--muted)]">
-                    {tx.customer}
-                  </p>
-                </div>
-
-                <div className="shrink-0 text-right">
-                  <p className="whitespace-nowrap font-semibold tabular-nums">
-                    {formatRp(tx.total)}
-                  </p>
-
-                  <p className="text-sm text-[var(--muted)]">{tx.date}</p>
-                </div>
-              </Link>
-            ))
-          )}
-        </div>
-
-        <div className="mt-4">
-          <Link to="/transactions">
-            <AppButton variant="secondary">View all transactions</AppButton>
-          </Link>
-        </div>
-      </SectionCard>
 
       {/* Performance insights */}
       <SectionCard

@@ -13,19 +13,25 @@ export function TransactionsTable<T>({
   onRowClick,
 }: TransactionsTableProps<T>) {
   return (
-    <>
+    <div
+      data-slot="framed-table"
+      className="w-full overflow-hidden rounded-[10px] border border-[var(--border)]"
+    >
       <DataTable
         table={desktopTable}
         onRowClick={onRowClick}
-        containerClassName="mt-4 hidden overflow-hidden rounded-[12px] border border-[var(--border)] md:block"
+        containerClassName="hidden md:block w-full"
+        tableClassName="[&_th]:border-b [&_th]:border-[var(--border)] [&_td]:border-b [&_td]:border-[var(--border)] [&_tr]:border-b [&_tr]:border-[var(--border)]/[0.5]"
+        headerClassName="[&_th]:bg-[var(--surface-muted)]"
         rowClassName="transition-colors duration-200 hover:bg-[var(--surface-muted)] focus-visible:bg-[var(--surface-muted)]"
       />
       <DataTable
         table={mobileTable}
         onRowClick={onRowClick}
-        containerClassName="mt-3 w-full overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--card)] md:hidden"
+        containerClassName="md:hidden w-full"
+        tableClassName="[&_th]:border-b [&_th]:border-[var(--border)] [&_td]:border-b [&_td]:border-[var(--border)]"
         rowClassName="transition-colors duration-200 hover:bg-[var(--surface-muted)] focus-visible:bg-[var(--surface-muted)]"
       />
-    </>
+    </div>
   );
 }

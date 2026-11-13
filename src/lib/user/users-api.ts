@@ -12,6 +12,10 @@ export const usersApi = {
     Api.get<UserListResponse>('/api/v1/users').then(
       (response) => response.data,
     ),
+  searchByUsername: (username: string) =>
+    Api.get<ApiUser[]>('/api/v1/user-list', {
+      params: { username },
+    }).then((response) => response.data),
   async findByUsername(username: string) {
     const response = await Api.get<UserListResponse>('/api/v1/users', {
       params: { username },

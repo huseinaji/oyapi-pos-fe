@@ -2,13 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { LoginDto } from '../../types/api';
 import { createStore } from '../store-utils';
 import { AuthApi } from '@/lib/auth/login-api';
+import { SignupApi, type SignupDto } from '@/lib/auth/signup-api';
 import type { AuthMeUser } from '@/types/api';
 
 export type AuthUser = AuthMeUser;
 
 export function getAuthenticatedHomePath(user: AuthUser): string {
   if (!user.store) return '/select-store';
-  return user.role === 'ADMIN' ? '/' : '/cashier-sessions';
+  return user.store.role === 'admin' ? '/' : '/cashier-sessions';
 }
 
 type AuthState = {
@@ -67,6 +68,12 @@ export function useLoginMutation() {
       });
       queryClient.setQueryData(authQueryKeys.me, null);
     },
+  });
+}
+
+export function useSignupMutation() {
+  return useMutation({
+    mutationFn: (dto: SignupDto) => SignupApi.signup(dto),
   });
 }
 

@@ -8,7 +8,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAuthStore, useLogoutMutation } from '../lib/auth/auth-store';
+import { useLogoutMutation } from '../lib/auth/auth-store';
 import {
   useListMyStoreQuery,
   useSelectStoreMutation,
@@ -19,7 +19,6 @@ export default function SelectStorePage() {
   const logoutMutation = useLogoutMutation();
   const { data, isLoading, isError } = useListMyStoreQuery();
   const selectStoreMutation = useSelectStoreMutation();
-  const currentUser = useAuthStore((s) => s.currentUser);
 
   const stores = data?.rows ?? [];
 
@@ -127,14 +126,16 @@ export default function SelectStorePage() {
           ))
         )}
 
-        {/* Create new store — only for ADMIN */}
-        {currentUser?.role === 'ADMIN' && (
+        {!isLoading && !isError && (
           <button
             type="button"
+            onClick={() => navigate('/create-store')}
             className="flex w-full items-center justify-center gap-2 rounded-[16px] border border-dashed border-[var(--border)] bg-transparent px-4 py-3.5 text-sm font-medium text-[var(--muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--accent)] active:scale-[0.99]"
           >
             <Plus size={16} />
-            Create new store
+            {stores.length === 0
+              ? 'Create your first store'
+              : 'Create new store'}
           </button>
         )}
 

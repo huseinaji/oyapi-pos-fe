@@ -245,12 +245,6 @@ export function ItemDetailDrawer({
             </div>
 
             <DrawerFooter className="flex-row flex-wrap justify-end border-t border-[var(--border)]/70 pt-4">
-              <AppButton
-                variant="secondary"
-                onClick={() => onOpenChange(false)}
-              >
-                Close
-              </AppButton>
               <AppButton variant="secondary" onClick={() => onViewFull(item)}>
                 <ArrowUpRight size={14} />
                 <span className="ml-2">Full details</span>

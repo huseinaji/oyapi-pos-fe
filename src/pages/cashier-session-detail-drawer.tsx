@@ -416,6 +416,21 @@ export function CashierSessionDetailDrawer({
                           </div>
                         ))}
                       </dl>
+                      {mockClosingData && (
+                        <dl className="flex items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--card)] px-4 py-3">
+                          <div>
+                            <dt className="text-xs text-[var(--muted)]">
+                              Physical cash counted
+                            </dt>
+                            <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--foreground)]">
+                              {formatRp(mockClosingData.actualCash)}
+                            </dd>
+                          </div>
+                          <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-medium text-[var(--muted)]">
+                            Mock value
+                          </span>
+                        </dl>
+                      )}
                     </div>
                   </section>
                 )}
@@ -503,7 +518,9 @@ export function CashierSessionDetailDrawer({
                             {visibleStockRows.map((row) => (
                               <TableRow key={row.itemId}>
                                 <TableCell>
-                                  <p className="font-medium uppercase">{row.name}</p>
+                                  <p className="font-medium uppercase">
+                                    {row.name}
+                                  </p>
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums">
                                   {formatQuantity(row.openingQty, row.uom)}

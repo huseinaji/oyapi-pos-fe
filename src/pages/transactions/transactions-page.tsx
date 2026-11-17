@@ -662,7 +662,7 @@ export default function TransactionsPage() {
         )}
         {totalTransactions > 0 && (
           <>
-            <div className="hidden md:block">
+            <div className="mt-6 hidden md:block">
               <TablePagination
                 table={desktopTable}
                 pagination={pagination}
@@ -675,7 +675,7 @@ export default function TransactionsPage() {
                 }
               />
             </div>
-            <div className="md:hidden">
+            <div className="mt-6 md:hidden">
               <TablePagination
                 table={mobileTable}
                 pagination={pagination}

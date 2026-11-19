@@ -185,14 +185,23 @@ test.describe('Cashier session detail drawer', () => {
       'data-swipe-direction',
       'down',
     );
-    const itemList = page.locator('ul.space-y-2').filter({ hasText: 'adonan' });
-    await expect(itemList.getByText('Opening', { exact: true })).toBeVisible();
-    await expect(itemList.getByText('20 pcs', { exact: true })).toBeVisible();
-    await expect(itemList.getByText('Sold', { exact: true })).toBeVisible();
-    await expect(itemList.getByText('3 pcs', { exact: true })).toBeVisible();
-    await expect(itemList.getByText('Expected', { exact: true })).toBeVisible();
-    await expect(itemList.getByText('17 pcs', { exact: true })).toBeVisible();
-    await itemList.scrollIntoViewIfNeeded();
+    const itemTable = page.getByRole('table');
+    const itemRow = itemTable.getByRole('row').filter({
+      has: page.getByRole('cell', { name: 'adonan', exact: true }),
+    });
+    await expect(
+      itemTable.getByRole('columnheader', { name: 'Opening' }),
+    ).toBeVisible();
+    await expect(
+      itemTable.getByRole('columnheader', { name: 'Sold' }),
+    ).toBeVisible();
+    await expect(
+      itemTable.getByRole('columnheader', { name: 'Expected' }),
+    ).toBeVisible();
+    await expect(itemRow.getByRole('cell').nth(1)).toHaveText('20 pcs');
+    await expect(itemRow.getByRole('cell').nth(2)).toHaveText('3 pcs');
+    await expect(itemRow.getByRole('cell').nth(3)).toHaveText('17 pcs');
+    await itemTable.scrollIntoViewIfNeeded();
     await expect(
       page.getByLabel('Real cash counted for the session'),
     ).toHaveCount(0);

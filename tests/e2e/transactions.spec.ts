@@ -109,7 +109,9 @@ test.describe('Transactions page', () => {
     await page.getByRole('button', { name: 'Advanced filters' }).click();
     await page.getByRole('button', { name: 'Last 30 days' }).click();
     await page.getByRole('button', { name: 'complete', exact: true }).click();
-    await page.getByRole('button', { name: 'Clear all filters' }).click();
+    await page
+      .getByRole('button', { name: 'Reset filters', exact: true })
+      .click();
 
     await expect(orderCount(page)).toHaveText('1');
     await expect(

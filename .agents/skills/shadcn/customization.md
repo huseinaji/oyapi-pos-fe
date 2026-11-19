@@ -29,12 +29,12 @@ Every color follows the `name` / `name-foreground` convention. The base variable
 
 | Variable                                     | Purpose                          |
 | -------------------------------------------- | -------------------------------- |
-| `--background` / `--foreground`              | Page background and default text |
+| `--background` / `--primary`              | Page background and default text |
 | `--card` / `--card-foreground`               | Card surfaces                    |
 | `--primary` / `--primary-foreground`         | Primary buttons and actions      |
 | `--secondary` / `--secondary-foreground`     | Secondary actions                |
 | `--muted` / `--muted-foreground`             | Muted/disabled states            |
-| `--accent` / `--accent-foreground`           | Hover and accent states          |
+| `--accent` / `--card`           | Hover and accent states          |
 | `--destructive` / `--destructive-foreground` | Error and destructive actions    |
 | `--border`                                   | Default border color             |
 | `--input`                                    | Form input borders               |
@@ -52,11 +52,11 @@ Colors use OKLCH: `--primary: oklch(0.205 0 0)` where values are lightness (0–
 Class-based toggle via `.dark` on the root element. In Next.js, use `next-themes`:
 
 ```tsx
-import { ThemeProvider } from "next-themes"
+import { ThemeProvider } from 'next-themes';
 
 <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
   {children}
-</ThemeProvider>
+</ThemeProvider>;
 ```
 
 ---
@@ -116,13 +116,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        warning: "oklch(var(--warning) / <alpha-value>)",
-        "warning-foreground":
-          "oklch(var(--warning-foreground) / <alpha-value>)",
+        warning: 'oklch(var(--warning) / <alpha-value>)',
+        'warning-foreground':
+          'oklch(var(--warning-foreground) / <alpha-value>)',
       },
     },
   },
-}
+};
 ```
 
 ```tsx
@@ -189,7 +189,7 @@ export function ConfirmDialog({ title, description, onConfirm, children }) {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  )
+  );
 }
 ```
 

@@ -1,65 +1,78 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 
 :root {
+  --border-strong: #c7bcae;
+  --muted: #505250;
+  --surface-accent: #d4e9e2;
+  --band-bg: #1f4d3a;
+  --band-text-muted: rgba(255, 255, 255, 0.7);
+  --primary-muted: rgba(244, 235, 217, 0.6);
+  --input: #d9d6cc;
+  --ring: #3e9b5f;
   --background: #f2f0eb;
-  --foreground: #1e3932;
+  --foreground: #1f4d3a;
   --card: #ffffff;
   --canvas-soft: #edebe9;
   --surface-muted: #f7f5f0;
   --border: #d8d2c7;
-  --border-strong: #c7bcae;
   --accent: #006241;
   --accent-strong: #00754a;
-  --accent-foreground: #ffffff;
-  --muted: #505250;
-  --muted-2: #7a7b78;
-  --surface-accent: #d4e9e2;
+  --primary: #1f4d3a;
+  --primary-foreground: #f4ebd9;
+  --heading: #006241;
   --status-success: #00754a;
   --status-pending: #cba258;
   --status-danger: #c82014;
-  --band-bg: #1e3932;
-  --band-text: #ffffff;
-  --band-text-muted: rgba(255, 255, 255, 0.7);
-  --heading: #006241;
-  --popover: #ffffff;
+  --radius: 0.5rem;
+  --font-jakarta: 'Plus Jakarta Sans', Arial, sans-serif;
 }
 
 .dark {
-  --background: #0f0f0f;
-  --foreground: #f7f5f0;
-  --card: #1d2925;
-  --canvas-soft: #202b26;
-  --surface-muted: #24312c;
-  --border: #32413a;
-  --border-strong: #3f4c46;
-  --accent: #66c39a;
-  --accent-strong: #52b07c;
-  --accent-foreground: #111827;
-  --muted: #b5b2aa;
-  --muted-2: #8a8a82;
-  --surface-accent: #20362f;
-  --status-success: #66c39a;
-  --status-pending: #dfc49d;
-  --status-danger: #f1997b;
-  --band-bg: #1e3932;
-  --band-text: #ffffff;
-  --band-text-muted: rgba(255, 255, 255, 0.7);
-  --heading: #66c39a;
-  --popover: #141a18;
+  --border-strong: #385046;
+  --muted: #9cb3a8;
+  --surface-accent: #133528;
+  --band-bg: #143628;
+  --band-text-muted: rgba(236, 253, 245, 0.72);
+  --primary-muted: rgba(236, 253, 245, 0.68);
+  --input: #2c3f37;
+  --ring: #34d399;
+  --background: #0c1210;
+  --foreground: #e8f1ec;
+  --card: #131c18;
+  --canvas-soft: #0f1714;
+  --surface-muted: #1b2722;
+  --border: #273831;
+  --accent: #10b981;
+  --accent-strong: #059669;
+  --primary: #1b4d38;
+  --primary-foreground: #ecfdf5;
+  --heading: #34d399;
+  --status-success: #34d399;
+  --status-pending: #fbbf24;
+  --status-danger: #f87171;
+  --radius: 1rem;
+  --font-jakarta: 'Plus Jakarta Sans', Arial, sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-foreground: var(--primary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --color-popover: var(--popover);
+  --color-popover: var(--card);
   --color-sidebar: var(--card);
-  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar-foreground: var(--primary);
   --color-sidebar-accent: var(--surface-muted);
-  --color-sidebar-accent-foreground: var(--foreground);
+  --color-sidebar-accent-foreground: var(--primary);
   --color-sidebar-border: var(--border);
   --color-sidebar-ring: var(--accent);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-hero: var(--primary);
+  --color-hero-foreground: var(--primary-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
 
 * {
@@ -74,8 +87,8 @@ body {
   margin: 0;
   min-height: 100vh;
   background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  color: var(--primary);
+  font-family: var(--font-jakarta), Arial, Helvetica, sans-serif;
 }
 
 ::selection {

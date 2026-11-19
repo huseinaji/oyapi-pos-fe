@@ -73,7 +73,7 @@ export function ItemDetailDrawer({
                   <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
                     Item details
                   </p>
-                  <DrawerTitle className="mt-1 line-clamp-2 text-left text-lg font-semibold text-[var(--foreground)]">
+                  <DrawerTitle className="mt-1 line-clamp-2 text-left text-lg font-semibold text-[var(--primary)]">
                     {item.name}
                   </DrawerTitle>
                 </div>
@@ -96,7 +96,7 @@ export function ItemDetailDrawer({
                   <button
                     type="button"
                     onClick={() => onOpenChange(false)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                     aria-label="Close item details"
                   >
                     <X size={16} />
@@ -129,7 +129,7 @@ export function ItemDetailDrawer({
               {item.type === 'item_bundle' && (
                 <section className="space-y-3">
                   <div>
-                    <h3 className="text-sm font-semibold text-[var(--foreground)]">
+                    <h3 className="text-sm font-semibold text-[var(--primary)]">
                       Bundle components
                     </h3>
                     <p className="mt-1 text-xs text-[var(--muted)]">
@@ -145,7 +145,7 @@ export function ItemDetailDrawer({
                           className="flex items-center justify-between gap-4 py-3"
                         >
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                            <p className="truncate text-sm font-medium text-[var(--primary)]">
                               {component.componentItem?.name ??
                                 component.componentItemId}
                             </p>
@@ -179,7 +179,7 @@ export function ItemDetailDrawer({
                     <CircleDollarSign size={14} />
                     Selling price
                   </p>
-                  <p className="mt-1 text-base font-semibold text-[var(--foreground)]">
+                  <p className="mt-1 text-base font-semibold text-[var(--primary)]">
                     {formatRp(item.sellingPrice)}
                   </p>
                 </div>
@@ -188,7 +188,7 @@ export function ItemDetailDrawer({
                     <Boxes size={14} />
                     Stock on hand
                   </p>
-                  <p className="mt-1 text-base font-semibold text-[var(--foreground)]">
+                  <p className="mt-1 text-base font-semibold text-[var(--primary)]">
                     {item.isMaintainStock
                       ? (item.bin?.actualQty ?? '—')
                       : 'Not tracked'}
@@ -207,7 +207,7 @@ export function ItemDetailDrawer({
                     <Tag size={14} />
                     Category
                   </dt>
-                  <dd className="text-right text-sm font-medium text-[var(--foreground)]">
+                  <dd className="text-right text-sm font-medium text-[var(--primary)]">
                     {item.category?.name || 'Uncategorized'}
                   </dd>
                 </div>
@@ -216,13 +216,13 @@ export function ItemDetailDrawer({
                     <Package size={14} />
                     Unit of measure
                   </dt>
-                  <dd className="text-right text-sm font-medium text-[var(--foreground)]">
+                  <dd className="text-right text-sm font-medium text-[var(--primary)]">
                     {ITEM_UOM_LABELS[item.uom as ItemUom] ?? item.uom}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4 py-3">
                   <dt className="text-sm text-[var(--muted)]">Base price</dt>
-                  <dd className="text-right text-sm font-medium text-[var(--foreground)]">
+                  <dd className="text-right text-sm font-medium text-[var(--primary)]">
                     {formatRp(item.basePrice)}
                   </dd>
                 </div>
@@ -231,13 +231,13 @@ export function ItemDetailDrawer({
                     <CalendarClock size={14} />
                     Last updated
                   </dt>
-                  <dd className="text-right text-sm font-medium text-[var(--foreground)]">
+                  <dd className="text-right text-sm font-medium text-[var(--primary)]">
                     {formatDate(item.updatedAt)}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4 py-3">
                   <dt className="text-sm text-[var(--muted)]">Item ID</dt>
-                  <dd className="max-w-[55%] truncate text-right text-xs font-medium text-[var(--foreground)]">
+                  <dd className="max-w-[55%] truncate text-right text-xs font-medium text-[var(--primary)]">
                     {item.id}
                   </dd>
                 </div>

@@ -6,6 +6,7 @@ import {
   FileText,
   Hash,
   Landmark,
+  Link2,
   X,
 } from 'lucide-react';
 
@@ -61,14 +62,14 @@ export function StockLedgerEntryDrawer({
                   <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
                     Stock Ledger Detail
                   </p>
-                  <DrawerTitle className="mt-1 line-clamp-2 text-left text-lg font-semibold text-[var(--foreground)]">
+                  <DrawerTitle className="mt-1 line-clamp-2 text-left text-lg font-semibold text-[var(--primary)]">
                     {entry.item.name}
                   </DrawerTitle>
                 </div>
                 <DrawerClose>
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--muted)] transition hover:text-[var(--foreground)]"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--muted)] transition hover:text-[var(--primary)]"
                     aria-label="Close movement details"
                   >
                     <X size={16} />
@@ -113,7 +114,7 @@ export function StockLedgerEntryDrawer({
                     <Boxes size={14} />
                     <span className="text-sm">Movement type</span>
                   </div>
-                  <span className="text-sm font-medium text-[var(--foreground)]">
+                  <span className="text-sm font-medium text-[var(--primary)]">
                     {entry.ledgerDirection || 'Stock'}
                   </span>
                 </div>
@@ -123,7 +124,7 @@ export function StockLedgerEntryDrawer({
                     <Landmark size={14} />
                     <span className="text-sm">Balance after</span>
                   </div>
-                  <span className="text-sm font-medium text-[var(--foreground)]">
+                  <span className="text-sm font-medium text-[var(--primary)]">
                     {entry.balanceAfter ?? '—'}
                   </span>
                 </div>
@@ -133,8 +134,21 @@ export function StockLedgerEntryDrawer({
                     <FileText size={14} />
                     <span className="text-sm">Reference</span>
                   </div>
-                  <span className="max-w-[45%] truncate text-right text-sm font-medium text-[var(--foreground)]">
+                  <span className="max-w-[45%] truncate text-right text-sm font-medium text-[var(--primary)]">
                     {entry.reference || '—'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 rounded-[12px] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5">
+                  <div className="flex shrink-0 items-center gap-2 text-[var(--muted)]">
+                    <Link2 size={14} />
+                    <span className="text-sm">Reference ID</span>
+                  </div>
+                  <span
+                    className="max-w-[55%] break-all text-right text-xs font-medium text-[var(--primary)]"
+                    title={entry.referenceId || undefined}
+                  >
+                    {entry.referenceId || '—'}
                   </span>
                 </div>
 
@@ -143,7 +157,7 @@ export function StockLedgerEntryDrawer({
                     <CalendarClock size={14} />
                     <span className="text-sm">Recorded</span>
                   </div>
-                  <span className="text-right text-sm font-medium text-[var(--foreground)]">
+                  <span className="text-right text-sm font-medium text-[var(--primary)]">
                     {formatLedgerDate(entry.createdAt)}
                   </span>
                 </div>
@@ -153,7 +167,7 @@ export function StockLedgerEntryDrawer({
                     <Hash size={14} />
                     <span className="text-sm">Entry ID</span>
                   </div>
-                  <span className="max-w-[50%] truncate text-right text-xs font-medium text-[var(--foreground)]">
+                  <span className="max-w-[50%] truncate text-right text-xs font-medium text-[var(--primary)]">
                     {entry.id}
                   </span>
                 </div>

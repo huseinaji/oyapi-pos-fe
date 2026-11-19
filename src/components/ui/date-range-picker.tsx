@@ -140,7 +140,7 @@ function CalendarMonth({
                 ${disabled ? 'cursor-not-allowed opacity-30' : 'cursor-pointer hover:z-10'}
                 ${
                   edge
-                    ? 'z-10 rounded-full bg-[var(--accent-strong)] font-semibold text-[var(--accent-foreground)]'
+                    ? 'z-10 rounded-full bg-[var(--accent-strong)] font-semibold text-[var(--card)]'
                     : rangeMiddle
                       ? 'bg-[var(--surface-accent)] text-[var(--accent)]'
                       : disabled
@@ -271,7 +271,7 @@ export function DateRangePicker({
       >
         <CalendarDays size={15} className="shrink-0 text-[var(--muted)]" />
         <span
-          className={`flex-1 text-left ${hasValue ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}
+          className={`flex-1 text-left ${hasValue ? 'text-[var(--primary)]' : 'text-[var(--muted)]'}`}
         >
           {displayLabel}
         </span>

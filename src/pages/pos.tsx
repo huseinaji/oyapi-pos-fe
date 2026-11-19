@@ -64,7 +64,7 @@ function showInsufficientStockToast(description: string) {
 
 export default function PosPage() {
   const navigate = useNavigate();
-  const { addItem, recalculate } = useCartStore();
+  const { addItem, recalculate, updateQty } = useCartStore();
   const {
     data: products = [],
     isLoading: isProductsLoading,
@@ -191,7 +191,7 @@ export default function PosPage() {
   };
 
   return (
-    <div className="flex h-[calc(100dvh-4rem)] flex-col overflow-hidden sm:h-[calc(100dvh-3.5rem)] xl:h-[calc(100dvh-6.5rem)] xl:flex-row xl:gap-4">
+    <div className="flex h-[calc(100dvh-4rem)] flex-col overflow-hidden sm:h-[calc(100dvh-3.5rem)] xl:h-[calc(100dvh-7rem)] xl:flex-row xl:gap-4">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="shrink-0 hidden sm:block">
           <PageHeader
@@ -201,7 +201,7 @@ export default function PosPage() {
               <label className="flex w-full items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2.5 text-sm backdrop-blur-sm sm:w-auto sm:min-w-[240px]">
                 <Search
                   size={16}
-                  className="shrink-0 text-[var(--band-text-muted)]"
+                  className="shrink-0 text-[var(--card-muted)]"
                 />
                 <input
                   ref={searchRef}
@@ -212,10 +212,10 @@ export default function PosPage() {
                   }}
                   onKeyDown={handleSearchKeyDown}
                   placeholder="Search products…"
-                  className="w-full bg-transparent text-[var(--band-text)] outline-none placeholder:text-[var(--band-text-muted)]"
+                  className="w-full bg-transparent text-[var(--card)] outline-none placeholder:text-[var(--card-muted)]"
                   autoFocus
                 />
-                <kbd className="hidden shrink-0 items-center gap-0.5 rounded border border-white/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--band-text-muted)] sm:flex">
+                <kbd className="hidden shrink-0 items-center gap-0.5 rounded border border-white/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--card-muted)] sm:flex">
                   <Keyboard size={10} />K
                 </kbd>
               </label>
@@ -236,7 +236,7 @@ export default function PosPage() {
               className={`relative shrink-0 whitespace-nowrap py-3 text-sm font-medium transition-colors ${
                 selectedCategoryKey === null
                   ? 'text-[var(--accent-strong)] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[var(--accent-strong)]'
-                  : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                  : 'text-[var(--muted)] hover:text-[var(--primary)]'
               }`}
             >
               All
@@ -251,7 +251,7 @@ export default function PosPage() {
                 className={`relative shrink-0 whitespace-nowrap py-3 text-sm font-medium transition-colors ${
                   selectedCategoryKey === category.id
                     ? 'text-[var(--accent-strong)] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[var(--accent-strong)]'
-                    : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                    : 'text-[var(--muted)] hover:text-[var(--primary)]'
                 }`}
               >
                 {category.name}
@@ -296,29 +296,36 @@ export default function PosPage() {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-              {availableProducts.map((product, productIndex) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  inCartQty={
-                    useCartStore
-                      .getState()
-                      .items.find((i) => i.id === product.id)?.quantity ?? 0
-                  }
-                  isHighlighted={lastAddedId === product.id}
-                  buttonRef={(el) => {
-                    productButtonRefs.current[productIndex] = el;
-                  }}
-                  onKeyDown={(e) => handleProductKeyDown(e, productIndex)}
-                  onAdd={() => handleAddProduct(product.id)}
-                />
-              ))}
+              {availableProducts.map((product, productIndex) => {
+                const inCartQty =
+                  useCartStore
+                    .getState()
+                    .items.find((item) => item.id === product.id)?.quantity ??
+                  0;
+
+                return (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    inCartQty={inCartQty}
+                    isHighlighted={lastAddedId === product.id}
+                    buttonRef={(el) => {
+                      productButtonRefs.current[productIndex] = el;
+                    }}
+                    onKeyDown={(e) => handleProductKeyDown(e, productIndex)}
+                    onAdd={() => handleAddProduct(product.id)}
+                    onDecrease={() =>
+                      updateQty(product.id, Math.max(0, inCartQty - 1))
+                    }
+                  />
+                );
+              })}
             </div>
           )}
         </div>
       </div>
 
-      <div className="hidden h-full min-h-0 w-[400px] shrink-0 xl:flex xl:flex-col">
+      <div className="hidden h-full min-h-0 w-[400px] shrink-0 border-l border-[var(--border)] xl:flex xl:flex-col">
         <CartPanel
           products={products}
           storeId={storeId}
@@ -352,6 +359,7 @@ function ProductCard({
   buttonRef,
   onKeyDown,
   onAdd,
+  onDecrease,
 }: {
   product: Product;
   inCartQty: number;
@@ -359,81 +367,133 @@ function ProductCard({
   buttonRef: (el: HTMLButtonElement | null) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>) => void;
   onAdd: () => void;
+  onDecrease: () => void;
 }) {
   const isOutOfStock = product.stock <= 0;
+  const hasImage = Boolean(product.imageUrl);
 
   return (
     <Card
       noPadding
-      className={`h-full overflow-hidden transition-all ${
+      className={`relative h-full overflow-hidden transition-[scale] duration-200 ease-out motion-reduce:transition-none ${
         isHighlighted
-          ? 'ring-2 ring-[var(--accent-strong)] ring-offset-1'
+          ? 'z-10 scale-[1.001]'
           : isOutOfStock
             ? 'opacity-60'
-            : 'hover:ring-1 hover:ring-[var(--accent)]/40'
+            : 'hover:z-10 hover:scale-[1.001]'
       }`}
     >
-      {/* Image — first child, shadcn card removes top padding automatically */}
-      <div className="relative aspect-video w-full overflow-hidden">
-        <img
-          src={PLACEHOLDER_IMG}
-          alt={product.name}
-          className="h-full w-full object-cover brightness-90 dark:brightness-75"
-        />
-        <span className="absolute right-2 top-2 rounded-full bg-[var(--card)]/90 px-2 py-0.5 text-sm font-bold text-[var(--accent)] shadow-sm backdrop-blur-sm">
+      {/* Image OR placeholder with cream background */}
+      <div
+        className={`relative aspect-video w-full overflow-hidden ${!hasImage ? 'bg-[var(--primary-foreground)]' : ''}`}
+      >
+        {hasImage ? (
+          <img
+            src={product.imageUrl || PLACEHOLDER_IMG}
+            alt={product.name}
+            className="h-full w-full object-cover brightness-90 dark:brightness-75"
+          />
+        ) : (
+          // Placeholder icon for products without image
+          <div className="flex h-full w-full items-center justify-center">
+            <svg
+              className="h-16 w-16 opacity-30"
+              fill="currentColor"
+              viewBox="0 0 24 24"
+              style={{ color: 'var(--primary)' }}
+            >
+              <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
+            </svg>
+          </div>
+        )}
+        {/* Price badge - hijau */}
+        <span className="absolute right-2 top-2 rounded-full bg-[var(--card)] px-2.5 py-1 text-s font-bold text-[var(--primary)] shadow-sm">
           {formatRp(product.price)}
         </span>
-        {inCartQty > 0 && (
-          <span className="absolute left-2 top-2 rounded-full bg-[var(--accent-strong)] px-2 py-0.5 text-[11px] font-bold text-white shadow-sm">
-            {inCartQty} in cart
-          </span>
-        )}
       </div>
 
       <CardContent>
-        <p className="truncate text-sm uppercase font-bold leading-snug">
+        {/* Product name - hijau */}
+        <p className="truncate text-sm font-bold leading-snug text-[var(--primary)]">
           {product.name}
         </p>
         {product.description && (
-          <p className="mt-0.5 line-clamp-2 text-xs text-[var(--muted)]">
+          <p className="mt-0.5 min-h-8 line-clamp-2 text-xs leading-4 text-[var(--muted)]">
             {product.description}
           </p>
         )}
+        {/* Category + Stock badges */}
         <div className="mt-2 flex items-center justify-between gap-1">
-          <div className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
+          {/* Category badge - hijau */}
+          <span className="rounded-full bg-[var(--primary-foreground)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--primary)]">
             {product.category || 'Uncategorized'}
-          </div>
-          <div
-            className={`text-[11px] font-medium ${isOutOfStock ? 'text-[var(--status-danger)]' : 'text-[var(--muted)]'}`}
+          </span>
+          {/* Stock text */}
+          <span
+            className={`text-[11px] font-medium ${
+              isOutOfStock
+                ? 'text-[var(--status-danger)]'
+                : 'text-[var(--muted)]'
+            }`}
           >
             {isOutOfStock ? 'Out of stock' : `Stock ${product.stock}`}
-          </div>
+          </span>
         </div>
       </CardContent>
 
       <CardFooter className="mt-auto border-t-0 bg-transparent p-0">
-        <button
-          ref={buttonRef}
-          type="button"
-          disabled={isOutOfStock}
-          onClick={onAdd}
-          onKeyDown={onKeyDown}
-          className={`flex w-full items-center justify-center gap-1.5 rounded-b-xl py-2.5 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed ${
-            isOutOfStock
-              ? 'bg-[var(--surface-muted)] text-[var(--muted)]'
-              : isHighlighted
-                ? 'bg-[var(--accent-strong)] text-white'
-                : 'bg-[var(--accent-strong)] text-white hover:bg-[var(--accent)]'
-          }`}
-        >
-          {isOutOfStock ? (
-            'Out of stock'
-          ) : (
-            <>
-              <Plus size={14} /> Add to cart
-            </>
-          )}
-        </button>
+        {inCartQty > 0 ? (
+          <div className="flex w-full items-center gap-1 rounded-b-xl border border-[var(--accent-strong)] bg-[var(--surface-accent)] p-1">
+            <button
+              ref={isOutOfStock ? buttonRef : undefined}
+              type="button"
+              aria-label={`Decrease ${product.name} quantity`}
+              onClick={onDecrease}
+              onKeyDown={onKeyDown}
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--card)] text-[var(--primary)] transition hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 ] focus-visible:ring-offset-1"
+            >
+              <Minus size={14} aria-hidden="true" />
+            </button>
+            <span
+              aria-live="polite"
+              className="min-w-0 flex-1 text-center text-xs font-semibold tabular-nums text-[var(--primary)]"
+            >
+              {inCartQty} in order
+            </span>
+            <button
+              ref={isOutOfStock ? undefined : buttonRef}
+              type="button"
+              disabled={isOutOfStock}
+              aria-label={`Increase ${product.name} quantity`}
+              onClick={onAdd}
+              onKeyDown={onKeyDown}
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] transition hover:bg-[var(--accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Plus size={14} aria-hidden="true" />
+            </button>
+          </div>
+        ) : (
+          <button
+            ref={buttonRef}
+            type="button"
+            disabled={isOutOfStock}
+            onClick={onAdd}
+            onKeyDown={onKeyDown}
+            className={`flex w-full items-center justify-center gap-1.5 rounded-b-xl py-2.5 text-sm font-bold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 ${
+              isOutOfStock
+                ? 'bg-[var(--surface-muted)] text-[var(--muted)]'
+                : 'bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--accent-strong)]'
+            }`}
+          >
+            {isOutOfStock ? (
+              'Out of stock'
+            ) : (
+              <>
+                <Plus size={14} aria-hidden="true" /> Add to cart
+              </>
+            )}
+          </button>
+        )}
       </CardFooter>
     </Card>
   );
@@ -655,38 +715,21 @@ function CartContent({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/* Header — dark band on mobile drawer, light surface on desktop */}
+      {/* Header */}
       <div
-        className={`shrink-0  ${
+        className={`shrink-0 ${
           isDesktop
-            ? 'px-4 py-4 border-b border-[var(--border)] bg-[var(--surface-muted)]'
-            : 'py-2 bg-[var(--band-bg)] text-[var(--band-text)]'
+            ? 'border-b border-[var(--border)] bg-[var(--card)] px-4 py-4'
+            : 'bg-[var(--band-bg)] py-2 text-[var(--card)]'
         }`}
       >
         {isDesktop && (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <ShoppingBag
-                size={16}
-                className={
-                  isDesktop
-                    ? 'text-[var(--accent)]'
-                    : 'text-[var(--band-text-muted)]'
-                }
-              />
-              <span
-                className={`text-sm font-semibold ${isDesktop ? 'text-[var(--foreground)]' : 'text-white'}`}
-              >
-                Current order
-              </span>
+              <ShoppingBag size={16} className="text-[var(--muted)]" />
+              <span className="text-sm font-semibold">Current order</span>
             </div>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                isDesktop
-                  ? 'bg-[var(--surface-accent)] text-[var(--accent)]'
-                  : 'bg-white/10 text-white'
-              }`}
-            >
+            <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-0.5 text-xs font-semibold text-[var(--muted)]">
               {checkout.cartQty} {checkout.cartQty === 1 ? 'item' : 'items'}
             </span>
           </div>
@@ -704,10 +747,10 @@ function CartContent({
                 <div
                   className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition ${
                     isDone
-                      ? 'bg-[var(--accent-strong)] text-white'
+                      ? 'bg-[var(--primary)] text-white'
                       : isActive
                         ? isDesktop
-                          ? 'bg-[var(--accent)] text-white'
+                          ? 'bg-[var(--primary)] text-white'
                           : 'bg-white text-[var(--band-bg)]'
                         : isDesktop
                           ? 'bg-[var(--border)] text-[var(--muted)]'
@@ -720,7 +763,7 @@ function CartContent({
                   className={`text-[11px] font-medium ${
                     isActive
                       ? isDesktop
-                        ? 'text-[var(--foreground)]'
+                        ? 'text-[var(--primary)]'
                         : 'text-white'
                       : isDesktop
                         ? 'text-[var(--muted)]'
@@ -783,7 +826,7 @@ function CartContent({
               {items.map((item) => (
                 <li
                   key={item.id}
-                  className="rounded-[12px] border border-[var(--border)] bg-[var(--surface-muted)]/50 p-3"
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)]/50 p-3"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -995,61 +1038,61 @@ function CartContent({
             </div>
           )}
         </div>
-        {/* Total + action on same row */}
-        <div className="mt-3 flex items-center gap-3">
-          <div className="flex min-w-0 flex-col">
-            <span className="text-xs text-[var(--muted)]">Total</span>
-            <span className="text-lg font-bold tracking-tight text-[var(--accent)]">
-              {formatRp(total)}
+        {/* Total row and full-width action */}
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="text-sm font-semibold text-[var(--accent)]">
+              Total
             </span>
-          </div>
-          <div className="flex flex-1 gap-2">
-            {completedOrder && step === 2 ? (
+            {step > 0 && !completedOrder && (
               <button
-                onClick={handleNewOrder}
-                className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white transition active:scale-95"
+                onClick={() => setStep((step - 1) as PaymentStep)}
+                className="min-h-8 rounded-full border border-[var(--border)] px-2.5 text-xs font-medium text-[var(--primary)] transition hover:bg-[var(--surface-muted)]"
               >
-                <RotateCcw size={14} /> New order
+                Back
               </button>
-            ) : (
-              <>
-                {step > 0 && (
-                  <AppButton
-                    variant="secondary"
-                    onClick={() => setStep((step - 1) as PaymentStep)}
-                  >
-                    Back
-                  </AppButton>
-                )}
-                {step === 0 && items.length > 0 && (
-                  <AppButton variant="secondary" onClick={clearCart}>
-                    Clear
-                  </AppButton>
-                )}
-                {step < 2 ? (
-                  <button
-                    disabled={
-                      (step === 0 && !canProceed) ||
-                      (step === 1 && !cashSufficient)
-                    }
-                    onClick={handleContinue}
-                    className="flex flex-1 items-center justify-center gap-1 rounded-full bg-[var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {step === 0 ? 'Continue to payment' : 'Review order'}
-                    <ChevronRight size={16} />
-                  </button>
-                ) : (
-                  <button
-                    disabled={isPending}
-                    onClick={() => void handlePlaceOrder()}
-                    className="flex flex-1 items-center justify-center gap-1 rounded-full bg-[var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {isPending ? 'Placing…' : 'Place order'}
-                  </button>
-                )}
-              </>
+            )}
+            {step === 0 && items.length > 0 && (
+              <button
+                onClick={clearCart}
+                className="min-h-8 rounded-full border border-[var(--border)] px-2.5 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--primary)]"
+              >
+                Clear
+              </button>
             )}
           </div>
+          <span className="whitespace-nowrap text-lg font-bold tracking-tight text-[var(--accent)]">
+            {formatRp(total)}
+          </span>
+        </div>
+        <div className="mt-2">
+          {completedOrder && step === 2 ? (
+            <button
+              onClick={handleNewOrder}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white transition active:scale-95"
+            >
+              <RotateCcw size={14} /> New order
+            </button>
+          ) : step < 2 ? (
+            <button
+              disabled={
+                (step === 0 && !canProceed) || (step === 1 && !cashSufficient)
+              }
+              onClick={handleContinue}
+              className="flex w-full items-center justify-center gap-1 rounded-full bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {step === 0 ? 'Continue to payment' : 'Review order'}
+              <ChevronRight size={16} />
+            </button>
+          ) : (
+            <button
+              disabled={isPending}
+              onClick={() => void handlePlaceOrder()}
+              className="flex w-full items-center justify-center gap-1 rounded-full bg-[var(--accent-strong)] px-4 py-2.5 text-sm font-semibold text-white transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isPending ? 'Placing…' : 'Place order'}
+            </button>
+          )}
         </div>
         {step === 1 && !cashSufficient && cashReceivedNum > 0 && (
           <p className="mt-2 text-center text-xs text-[var(--status-danger)]">
@@ -1128,7 +1171,7 @@ function CartPanel(props: CheckoutProps) {
   return (
     <Card
       noPadding
-      className="flex h-full flex-col overflow-hidden rounded-[14px] p-0"
+      className="flex h-full flex-col overflow-hidden rounded-none"
     >
       <CartContent checkout={checkout} products={props.products} isDesktop />
     </Card>

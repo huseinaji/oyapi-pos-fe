@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,13 +10,12 @@ import {
   useSelectStoreMutation,
 } from '@/lib/stores/store-store';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { FormField } from '@/components/layout/form-field';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 
 const createStoreSchema = z.object({
-  name: z.string().trim().min(1, 'Enter a store name'),
+  name: z.string().trim().min(1, 'Masukkan nama toko'),
   address: z.string().trim(),
   phone: z.string().trim(),
   imageUrl: z
@@ -24,17 +23,21 @@ const createStoreSchema = z.object({
     .trim()
     .refine(
       (value) => value.length === 0 || z.url().safeParse(value).success,
-      'Enter a valid image URL',
+      'Masukkan URL gambar yang valid',
     ),
 });
 
 type CreateStoreForm = z.infer<typeof createStoreSchema>;
+
+const inputClass =
+  'h-12 rounded-xl border-[1.5px] bg-card pl-11 pr-4 text-sm font-medium focus-visible:ring-[3px]';
 
 export default function CreateStorePage() {
   const navigate = useNavigate();
   const createStoreMutation = useCreateStoreMutation();
   const selectStoreMutation = useSelectStoreMutation();
   const [error, setError] = useState('');
+
   const {
     register,
     handleSubmit,
@@ -57,184 +60,249 @@ export default function CreateStorePage() {
       });
       createdStoreId = store.id;
       await selectStoreMutation.mutateAsync(store.id);
-      toast.success('Store created', {
-        description: `${store.name} is ready to use.`,
+      toast.success('Toko berhasil dibuat', {
+        description: `${store.name} siap digunakan.`,
       });
       navigate('/', { replace: true });
     } catch (submitError) {
       if (createdStoreId) {
-        toast.error('Store created, but it could not be selected', {
-          description: 'Choose the new store from your store list to continue.',
+        toast.error('Toko dibuat, tapi tidak dapat dipilih', {
+          description: 'Pilih toko baru dari daftar toko Anda.',
         });
         navigate('/select-store', { replace: true });
         return;
       }
 
       if (submitError instanceof ApiError) {
-        setError(
-          submitError.message ||
-            'Unable to create the store. Please try again.',
-        );
+        setError(submitError.message || 'Tidak dapat membuat toko. Coba lagi.');
         return;
       }
 
       if (submitError instanceof TypeError) {
-        setError(
-          'Unable to reach the server. Check your connection and try again.',
-        );
+        setError('Tidak dapat terhubung ke server. Periksa koneksi Anda.');
         return;
       }
 
-      setError('An unexpected error occurred. Please try again.');
+      setError('Terjadi kesalahan. Silakan coba lagi.');
     }
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4 py-8">
-      <div className="w-full max-w-xl">
+    <div
+      className="flex min-h-screen flex-col items-center justify-center px-4 py-12"
+      style={{
+        backgroundColor: 'var(--background)',
+        fontFamily: 'var(--font-jakarta)',
+      }}
+    >
+      <div className="w-full max-w-[440px]">
+        {/* Back link */}
         <Link
           to="/select-store"
-          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-[var(--muted)] transition hover:text-[var(--accent)]"
+          className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium transition hover:opacity-70"
+          style={{ color: 'var(--muted)' }}
         >
-          <ArrowLeft size={16} />
-          Back to stores
+          <ArrowLeft size={15} strokeWidth={1.8} />
+          Kembali ke daftar toko
         </Link>
 
-        <header className="mb-7">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)]/15">
-            <Store className="text-[var(--accent)]" size={22} />
+        {/* Header */}
+        <div className="mb-7">
+          <div
+            className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl"
+            style={{ backgroundColor: 'rgba(31,77,58,0.1)' }}
+          >
+            <Store
+              size={22}
+              strokeWidth={1.8}
+              style={{ color: 'var(--primary)' }}
+            />
           </div>
-          <h1 className="text-3xl font-semibold tracking-[-0.02em] text-[var(--foreground)]">
-            Create a store
+          <h1
+            className="text-[1.75rem] font-bold tracking-[-0.02em]"
+            style={{ color: 'var(--primary)' }}
+          >
+            Buat toko
           </h1>
-          <p className="mt-2 max-w-prose text-sm leading-6 text-[var(--muted)]">
-            Add the details your team will use to recognize this store.
+          <p
+            className="mt-1.5 text-sm leading-relaxed"
+            style={{ color: 'var(--muted)' }}
+          >
+            Tambahkan detail yang digunakan tim Anda untuk mengenali toko ini.
           </p>
-        </header>
+        </div>
 
-        <Card className="border-[var(--border)] bg-[var(--card)] p-5 shadow-[0_1px_2px_rgba(0,0,0,0.08)] sm:p-6">
-          <CardContent className="space-y-5">
-            {error && (
-              <div
-                role="alert"
-                className="rounded-xl border border-[var(--status-danger)]/25 bg-[var(--status-danger)]/5 p-3.5 text-sm text-[var(--status-danger)]"
-              >
-                {error}
-              </div>
-            )}
+        {/* Error banner */}
+        {error && (
+          <div
+            className="mb-5 flex items-start gap-2.5 rounded-xl border p-3.5 text-sm"
+            role="alert"
+            style={{
+              borderColor: 'rgba(200,32,20,0.2)',
+              backgroundColor: 'rgba(200,32,20,0.06)',
+              color: 'var(--status-danger)',
+            }}
+          >
+            <div
+              className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold leading-none"
+              style={{ borderColor: 'var(--status-danger)' }}
+            >
+              !
+            </div>
+            <p>{error}</p>
+          </div>
+        )}
 
-            <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-              <FormField
-                label="Store name"
-                htmlFor="store-name"
-                required
-                description="Use the name your staff and customers know."
-                error={errors.name?.message}
-              >
-                <div className="relative">
-                  <ShoppingBag
-                    aria-hidden="true"
-                    size={16}
-                    className="pointer-events-none absolute inset-y-0 left-3.5 my-auto text-[var(--muted)]"
-                  />
-                  <Input
-                    id="store-name"
-                    autoComplete="organization"
-                    placeholder="e.g. Main Street Market"
-                    aria-invalid={Boolean(errors.name)}
-                    className="h-11 rounded-xl border-[var(--border)] bg-[var(--surface-muted)] pl-10 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-2)] focus-visible:border-[var(--accent)] focus-visible:ring-[var(--accent)]/20"
-                    {...register('name')}
-                  />
-                </div>
-              </FormField>
-
-              <FormField
-                label="Address"
-                htmlFor="store-address"
-                description="Optional"
-                error={errors.address?.message}
-              >
-                <div className="relative">
-                  <MapPin
-                    aria-hidden="true"
-                    size={16}
-                    className="pointer-events-none absolute inset-y-0 left-3.5 my-auto text-[var(--muted)]"
-                  />
-                  <Input
-                    id="store-address"
-                    autoComplete="street-address"
-                    placeholder="Street, city, or area"
-                    aria-invalid={Boolean(errors.address)}
-                    className="h-11 rounded-xl border-[var(--border)] bg-[var(--surface-muted)] pl-10 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-2)] focus-visible:border-[var(--accent)] focus-visible:ring-[var(--accent)]/20"
-                    {...register('address')}
-                  />
-                </div>
-              </FormField>
-
-              <FormField
-                label="Phone number"
-                htmlFor="store-phone"
-                description="Optional"
-                error={errors.phone?.message}
-              >
-                <div className="relative">
-                  <Phone
-                    aria-hidden="true"
-                    size={16}
-                    className="pointer-events-none absolute inset-y-0 left-3.5 my-auto text-[var(--muted)]"
-                  />
-                  <Input
-                    id="store-phone"
-                    type="tel"
-                    autoComplete="tel"
-                    placeholder="Store contact number"
-                    aria-invalid={Boolean(errors.phone)}
-                    className="h-11 rounded-xl border-[var(--border)] bg-[var(--surface-muted)] pl-10 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-2)] focus-visible:border-[var(--accent)] focus-visible:ring-[var(--accent)]/20"
-                    {...register('phone')}
-                  />
-                </div>
-              </FormField>
-
-              <FormField
-                label="Store image URL"
-                htmlFor="store-image-url"
-                description="Optional. Provide a publicly accessible image URL."
-                error={errors.imageUrl?.message}
-              >
+        {/* Card */}
+        <div
+          className="rounded-2xl border p-6"
+          style={{
+            backgroundColor: 'var(--card)',
+            borderColor: 'var(--border)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+          }}
+        >
+          <form
+            className="flex flex-col gap-5"
+            onSubmit={handleSubmit(onSubmit)}
+          >
+            {/* Store name */}
+            <FormField
+              label="Nama toko"
+              htmlFor="store-name"
+              required
+              error={errors.name?.message}
+            >
+              <div className="relative">
+                <span
+                  className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4"
+                >
+                  <ShoppingBag size={16} strokeWidth={1.8} />
+                </span>
                 <Input
-                  id="store-image-url"
-                  type="url"
-                  inputMode="url"
-                  placeholder="https://example.com/store-logo.png"
-                  aria-invalid={Boolean(errors.imageUrl)}
-                  className="h-11 rounded-xl border-[var(--border)] bg-[var(--surface-muted)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-2)] focus-visible:border-[var(--accent)] focus-visible:ring-[var(--accent)]/20"
-                  {...register('imageUrl')}
+                  id="store-name"
+                  autoComplete="organization"
+                  placeholder="cth. Warung Kopi Pak Budi"
+                  aria-invalid={Boolean(errors.name)}
+                  className={inputClass}
+                  style={{
+                    borderColor: errors.name
+                      ? 'var(--status-danger)'
+                      : 'var(--border)',
+                  }}
+                  {...register('name')}
                 />
-              </FormField>
-
-              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  onClick={() => navigate('/select-store')}
-                  className="h-11 rounded-xl border-[var(--border)] px-5 text-[var(--foreground)]"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  size="lg"
-                  className="h-11 rounded-xl bg-[var(--accent-strong)] px-5 font-semibold text-[var(--accent-foreground)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Creating store…' : 'Create store'}
-                </Button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+            </FormField>
+
+            {/* Address */}
+            <FormField
+              label="Alamat"
+              htmlFor="store-address"
+              error={errors.address?.message}
+            >
+              <div className="relative">
+                <span
+                  className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4"
+                >
+                  <MapPin size={16} strokeWidth={1.8} />
+                </span>
+                <Input
+                  id="store-address"
+                  autoComplete="street-address"
+                  placeholder="Jalan, kota, atau area (opsional)"
+                  aria-invalid={Boolean(errors.address)}
+                  className={inputClass}
+                  style={{
+                    borderColor: errors.address
+                      ? 'var(--status-danger)'
+                      : 'var(--border)',
+                  }}
+                  {...register('address')}
+                />
+              </div>
+            </FormField>
+
+            {/* Phone */}
+            <FormField
+              label="Nomor telepon"
+              htmlFor="store-phone"
+              error={errors.phone?.message}
+            >
+              <div className="relative">
+                <span
+                  className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4"
+                >
+                  <Phone size={16} strokeWidth={1.8} />
+                </span>
+                <Input
+                  id="store-phone"
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="Nomor kontak toko (opsional)"
+                  aria-invalid={Boolean(errors.phone)}
+                  className={inputClass}
+                  style={{
+                    borderColor: errors.phone
+                      ? 'var(--status-danger)'
+                      : 'var(--border)',
+                  }}
+                  {...register('phone')}
+                />
+              </div>
+            </FormField>
+
+            {/* Image URL — no icon, full width */}
+            <FormField
+              label="URL gambar toko"
+              htmlFor="store-image-url"
+              error={errors.imageUrl?.message}
+            >
+              <Input
+                id="store-image-url"
+                type="url"
+                inputMode="url"
+                placeholder="https://example.com/logo.png (opsional)"
+                aria-invalid={Boolean(errors.imageUrl)}
+                className="h-12 rounded-xl border-[1.5px] bg-card px-4 text-sm font-medium focus-visible:ring-[3px]"
+                style={{
+                  borderColor: errors.imageUrl
+                    ? 'var(--status-danger)'
+                    : 'var(--border)',
+                }}
+                {...register('imageUrl')}
+              />
+            </FormField>
+
+            {/* Actions */}
+            <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate('/select-store')}
+                className="h-12 flex-1 rounded-full border-[1.5px] text-sm font-bold"
+                style={{
+                  borderColor: 'var(--border)',
+                  color: 'var(--primary)',
+                }}
+              >
+                Batal
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="h-12 flex-1 rounded-full text-sm font-bold tracking-wide transition active:scale-[0.98]"
+                style={{
+                  backgroundColor: 'var(--primary)',
+                  color: 'var(--primary-foreground)',
+                }}
+              >
+                {isSubmitting ? 'Membuat toko…' : 'Buat toko'}
+              </Button>
+            </div>
+          </form>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }

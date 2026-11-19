@@ -4,6 +4,7 @@ import type {
   AssignStoreMemberDto,
   CreateStoreDto,
   DisableStoreMemberDto,
+  EditStoreMemberDto,
   MyStoreResponse,
   StoreMemberListResponse,
 } from './store-types';
@@ -28,6 +29,15 @@ export const StoreApi = {
   assignMember: (storeId: string, body: AssignStoreMemberDto) =>
     Api.post<void>(
       `/api/v1/store/${encodeURIComponent(storeId)}/assign`,
+      body,
+    ).then((response) => response.data),
+  editMember: (
+    storeId: string,
+    memberId: string,
+    body: EditStoreMemberDto,
+  ) =>
+    Api.patch<void>(
+      `/api/v1/store/${encodeURIComponent(storeId)}/members/${encodeURIComponent(memberId)}`,
       body,
     ).then((response) => response.data),
   disableMember: (storeId: string, body: DisableStoreMemberDto) =>

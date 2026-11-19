@@ -1,12 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Clock,
-  LogIn,
-  LogOut,
-  Package,
-  Plus,
-  Trash2,
-} from 'lucide-react';
+import { Clock, LogIn, LogOut, Package, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppButton } from '@/components/ui/app-button';
 import { AppDialog } from '@/components/ui/app-dialog';
@@ -31,11 +24,9 @@ import {
 import type {
   CashierSession,
   CashierStockSnapshot,
+  CloseCashierSessionDto,
 } from '@/lib/cashier-sessions/cashier-sessions-types';
-import {
-  CashierSessionDetailDrawer,
-  type SessionClosingMockData,
-} from './cashier-session-detail-drawer';
+import { CashierSessionDetailDrawer } from './cashier-session-detail-drawer';
 import { DataTable } from '@/components/ui/data-table';
 import {
   getCoreRowModel,
@@ -45,6 +36,7 @@ import {
 } from '@tanstack/react-table';
 import { ITEM_TYPE_OPTIONS } from '@/lib/product/product-types';
 import { TablePagination } from '@/components/ui/table-pagination';
+import { formatRp } from '@/lib/transaction-utils';
 
 type OpeningStockRow = {
   id: number;
@@ -92,9 +84,7 @@ export default function CashierSessionsPage() {
   );
   const [documentDrawerOpen, setDocumentDrawerOpen] = useState(false);
   const [closingDialogOpen, setClosingDialogOpen] = useState(false);
-  const [mockClosingData, setMockClosingData] = useState<
-    Record<string, SessionClosingMockData>
-  >({});
+  const [openingCash, setOpeningCash] = useState('');
   const [openingStockRows, setOpeningStockRows] = useState<OpeningStockRow[]>(
     [],
   );
@@ -128,6 +118,15 @@ export default function CashierSessionsPage() {
         cell: ({ row }) => row.original.openedBy.username,
       },
       {
+        accessorFn: (session) => session.openingCash ?? 0,
+        id: 'openingCash',
+        header: 'Starting cash',
+        cell: ({ row }) =>
+          row.original.openingCash === undefined
+            ? '—'
+            : formatRp(row.original.openingCash),
+      },
+      {
         accessorFn: (session) => session.closedAt ?? '',
         id: 'closedAt',
         header: 'Closed',
@@ -138,6 +137,28 @@ export default function CashierSessionsPage() {
         id: 'closer',
         header: 'Closed by',
         cell: ({ row }) => row.original.closer?.username ?? '—',
+      },
+      {
+        accessorFn: (session) => session.actualCash ?? 0,
+        id: 'actualCash',
+        header: 'Cash counted',
+        cell: ({ row }) =>
+          row.original.actualCash === undefined
+            ? '—'
+            : formatRp(row.original.actualCash),
+      },
+      {
+        accessorFn: (session) => session.remarks ?? '',
+        id: 'remarks',
+        header: 'Remarks',
+        cell: ({ row }) => (
+          <span
+            className="block max-w-48 truncate"
+            title={row.original.remarks ?? undefined}
+          >
+            {row.original.remarks?.trim() || '—'}
+          </span>
+        ),
       },
       {
         accessorKey: 'status',
@@ -175,6 +196,15 @@ export default function CashierSessionsPage() {
             <p className="text-[11px] text-[var(--muted)]">
               {formatDate(row.original.openedAt)}
             </p>
+            <p className="mt-1 text-[11px] tabular-nums text-[var(--muted)]">
+              Start{' '}
+              {row.original.openingCash === undefined
+                ? '—'
+                : formatRp(row.original.openingCash)}
+              {row.original.actualCash === undefined
+                ? ''
+                : ` · Counted ${formatRp(row.original.actualCash)}`}
+            </p>
           </div>
         ),
       },
@@ -203,7 +233,6 @@ export default function CashierSessionsPage() {
     (i) => i.type !== ITEM_TYPE_OPTIONS[2],
   );
 
-  console.log('available items', availableItems);
   const selectableItems = availableItems.filter(
     (item) => !openingStockRows.some((line) => line.itemId === item.id),
   );
@@ -249,6 +278,16 @@ export default function CashierSessionsPage() {
 
   const handleOpenCashier = async () => {
     if (!storeId || !user) return;
+    const openingCashAmount = Number(openingCash);
+    if (
+      openingCash.trim() === '' ||
+      !Number.isFinite(openingCashAmount) ||
+      openingCashAmount < 0
+    ) {
+      toast.error('Enter a valid starting cash amount.');
+      return;
+    }
+
     const openingStock: CashierStockSnapshot[] = [];
     for (const row of openingStockRows) {
       if (!row.itemId) continue;
@@ -273,11 +312,15 @@ export default function CashierSessionsPage() {
       });
     }
     try {
-      await openMutation.mutateAsync(openingStock);
+      await openMutation.mutateAsync({
+        openingCash: openingCashAmount,
+        openingStock,
+      });
       setOpeningDialogOpen(false);
+      setOpeningCash('');
       setOpeningStockRows([]);
       toast.success('Cashier opened', {
-        description: 'Opening document with manual stock counts created.',
+        description: 'POS session opened with the recorded starting cash.',
       });
     } catch (error) {
       toast.error('Unable to open cashier', {
@@ -287,26 +330,15 @@ export default function CashierSessionsPage() {
     }
   };
 
-  const handleCloseCashier = async (values: {
-    actualStockByItem: Record<string, number>;
-    actualCash: number;
-  }) => {
+  const handleCloseCashier = async (values: CloseCashierSessionDto) => {
     if (!activeSession) return;
     try {
-      await closeMutation.mutateAsync();
-      setMockClosingData((current) => ({
-        ...current,
-        [activeSession.id]: {
-          ...values,
-          recordedAt: new Date().toISOString(),
-        },
-      }));
+      await closeMutation.mutateAsync(values);
       setDocumentDrawerOpen(false);
       setClosingDialogOpen(false);
       if (!documentDrawerOpen) setDocumentSession(null);
       toast.success('Cashier closed', {
-        description:
-          'Session closed. Physical counts are stored as mock data for this page session.',
+        description: 'Cash and stock counts were saved to the session.',
       });
     } catch (error) {
       toast.error('Unable to close cashier', {
@@ -321,7 +353,7 @@ export default function CashierSessionsPage() {
       <PageHeader
         eyebrow="Sales"
         title="Cashier sessions"
-        description="Manage server-side POS sessions. Opening items use current bin balances unless you enter a lower manual count."
+        description="Open and close the store's POS session, then review recorded cash and stock counts."
       />
 
       <SectionCard title="Current session">
@@ -343,7 +375,7 @@ export default function CashierSessionsPage() {
           </div>
         ) : activeSession ? (
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Info
                 icon={Clock}
                 label="Opened at"
@@ -359,10 +391,20 @@ export default function CashierSessionsPage() {
                 label="Starting items"
                 value={String(activeSession.openingStock.length)}
               />
+              <Info
+                icon={Clock}
+                label="Starting cash"
+                value={
+                  activeSession.openingCash === undefined
+                    ? '—'
+                    : formatRp(activeSession.openingCash)
+                }
+              />
             </div>
             <div className="flex flex-wrap gap-2">
               <AppButton
                 variant="inverted"
+                disabled={!canCloseSession || closeMutation.isPending}
                 onClick={() => {
                   setDocumentSession(activeSession);
                   setDocumentDrawerOpen(false);
@@ -379,18 +421,12 @@ export default function CashierSessionsPage() {
             <div>
               <p className="font-medium">No cashier session is open</p>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Opening items will be created from current bin balances. Manual
-                counts are optional.
+                Add the starting cash amount. Opening stock counts are optional.
               </p>
             </div>
             <AppButton
               onClick={() => setOpeningDialogOpen(true)}
-              disabled={
-                !storeId ||
-                productsQuery.isLoading ||
-                productsQuery.isError ||
-                openMutation.isPending
-              }
+              disabled={!storeId || openMutation.isPending}
             >
               <LogIn size={15} />
               <span className="ml-2">Open cashier</span>
@@ -413,8 +449,8 @@ export default function CashierSessionsPage() {
               table={sessionsTable}
               onRowClick={openSessionDetails}
               rowClassName="hover:bg-[var(--surface-accent)]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"
-              containerClassName="hidden overflow-hidden rounded-[10px] border border-[var(--border)] md:block"
-              tableClassName="min-w-[760px]"
+              containerClassName="hidden overflow-x-auto rounded-[10px] border border-[var(--border)] md:block"
+              tableClassName="min-w-[1080px]"
             />
             <DataTable
               table={mobileSessionsTable}
@@ -455,13 +491,48 @@ export default function CashierSessionsPage() {
         open={openingDialogOpen}
         onClose={() => {
           setOpeningDialogOpen(false);
+          setOpeningCash('');
           setOpeningStockRows([]);
         }}
         title="Open cashier"
-        description="Select items with a lower physical count than the bin balance."
+        description="Record the cash float and, optionally, opening stock counts."
         size="lg"
       >
         <div className="space-y-2.5 pb-2">
+          <label className="block text-sm font-medium text-[var(--primary)]">
+            Starting cash
+            <span className="mt-1.5 flex h-12 items-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] transition focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20">
+              <span className="pl-3 text-sm text-[var(--muted)]">Rp</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputMode="numeric"
+                value={openingCash}
+                onChange={(event) => setOpeningCash(event.target.value)}
+                className="h-full min-w-0 flex-1 bg-transparent px-3 text-right text-base font-semibold tabular-nums text-[var(--primary)] outline-none"
+                aria-label="Starting cash for the session"
+                placeholder="0"
+              />
+            </span>
+          </label>
+          {productsQuery.isError && (
+            <div
+              className="flex items-center justify-between gap-3 text-sm text-[var(--status-danger)]"
+              role="alert"
+            >
+              <span>
+                Opening items could not be loaded. You can still open the
+                session with cash only.
+              </span>
+              <AppButton
+                variant="secondary"
+                onClick={() => void productsQuery.refetch()}
+              >
+                Retry
+              </AppButton>
+            </div>
+          )}
           <div className="overflow-hidden rounded-[10px] border border-[var(--border)]">
             <Table className="w-full table-fixed">
               <TableHeader className="bg-[var(--surface-muted)]">
@@ -521,7 +592,7 @@ export default function CashierSessionsPage() {
                               )
                             }
                             disabled={!row.itemId}
-                            className="h-11 w-full min-w-0 rounded-[8px] border border-[var(--border)] bg-[var(--surface-muted)] px-2 text-right text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+                            className="h-11 w-full min-w-0 rounded-[8px] border border-[var(--border)] bg-[var(--surface-muted)] px-2 text-right text-sm text-[var(--primary)] outline-none focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
                             aria-label={
                               item
                                 ? `Physical count for ${item.name}`
@@ -564,7 +635,8 @@ export default function CashierSessionsPage() {
 
           <div className="flex items-center justify-between gap-3">
             <span className="text-xs text-[var(--muted)]">
-              {openingStockRows.filter((row) => row.itemId).length} items
+              {openingStockRows.filter((row) => row.itemId).length} opening
+              items
             </span>
             <AppButton
               variant="secondary"
@@ -589,6 +661,7 @@ export default function CashierSessionsPage() {
                 variant="secondary"
                 onClick={() => {
                   setOpeningDialogOpen(false);
+                  setOpeningCash('');
                   setOpeningStockRows([]);
                 }}
               >
@@ -620,11 +693,10 @@ export default function CashierSessionsPage() {
           onClosingDialogOpenChange={setClosingDialogOpen}
           canClose={Boolean(
             canCloseSession &&
-              documentSession.id === activeSession?.id &&
-              documentSession.status === 'OPEN',
+            documentSession.id === activeSession?.id &&
+            documentSession.status === 'OPEN',
           )}
           isClosing={closeMutation.isPending}
-          mockClosingData={mockClosingData[documentSession.id]}
           onCloseSession={(values) => void handleCloseCashier(values)}
         />
       )}

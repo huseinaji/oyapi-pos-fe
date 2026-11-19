@@ -11,13 +11,21 @@ import {
   PackageOpen,
   Save,
   RefreshCw,
+  Check,
   Eye,
   EyeOff,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppButton } from '@/components/ui/app-button';
-import { AppDialog } from '@/components/ui/app-dialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
 import { PageHeader } from '@/components/ui/page-header';
 import { RowActions } from '@/components/ui/row-actions';
 import { SectionCard } from '@/components/ui/section-card';
@@ -127,12 +135,31 @@ const emptyForm: ItemForm = {
   itemComponents: [],
 };
 
+const ITEM_TYPE_DESCRIPTIONS: Record<ItemType, string> = {
+  finished_good: 'Ready to sell',
+  raw_material: 'Used in recipes',
+  item_bundle: 'Sold as a set',
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function formatItemType(type: string): string {
   return ITEM_TYPE_LABELS[type as ItemType] ?? type;
+}
+
+function getItemTypeBadgeClass(type: string): string {
+  switch (type) {
+    case 'finished_good':
+      return 'bg-[var(--primary-foreground)] text-[var(--primary)]';
+    case 'item_bundle':
+      return 'bg-[var(--surface-accent)] text-[var(--primary)]';
+    case 'raw_material':
+      return 'border border-[var(--primary)] text-[var(--primary)]';
+    default:
+      return 'bg-[var(--surface-muted)] text-[var(--muted)]';
+  }
 }
 
 function formatUom(uom: string): string {
@@ -230,6 +257,7 @@ export default function ProductsPage() {
   const storeError = productsQuery.isError ? 'Failed to load items' : null;
 
   const [formOpen, setFormOpen] = useState(false);
+  const [showImageUrlInput, setShowImageUrlInput] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingItem, setDeletingItem] = useState<ApiItem | null>(null);
@@ -321,6 +349,7 @@ export default function ProductsPage() {
 
   const openNew = () => {
     setEditingId(null);
+    setShowImageUrlInput(false);
     reset(emptyForm);
     setFormApiError(null);
     setFormOpen(true);
@@ -329,6 +358,9 @@ export default function ProductsPage() {
   const openEdit = (item: ApiItem) => {
     setDetailOpen(false);
     setEditingId(item.id);
+    setShowImageUrlInput(
+      Boolean(item.imageUrl && !item.imageUrl.startsWith('data:')),
+    );
     reset(itemToForm(item));
     setFormApiError(null);
     setFormOpen(true);
@@ -445,7 +477,7 @@ export default function ProductsPage() {
         header: 'Name',
         enableSorting: false,
         cell: ({ row }) => (
-          <span className="max-w-0 truncate font-medium text-[var(--foreground)]">
+          <span className="max-w-0 truncate font-bold text-[var(--primary)]">
             {row.original.name}
           </span>
         ),
@@ -456,7 +488,9 @@ export default function ProductsPage() {
         header: 'Item type',
         enableSorting: false,
         cell: ({ row }) => (
-          <span className="text-[var(--muted)]">
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${getItemTypeBadgeClass(row.original.type ?? '')}`}
+          >
             {formatItemType(row.original.type ?? '')}
           </span>
         ),
@@ -487,7 +521,7 @@ export default function ProductsPage() {
         header: 'Selling price',
         enableSorting: false,
         cell: ({ row }) => (
-          <span className="font-medium text-[var(--foreground)]">
+          <span className="font-bold text-[var(--primary)]">
             {formatRp(row.original.sellingPrice)}
           </span>
         ),
@@ -547,7 +581,7 @@ export default function ProductsPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="min-w-0 overflow-hidden">
-            <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+            <p className="truncate text-sm font-semibold text-[var(--primary)]">
               {row.original.name}
             </p>
             <p className="mt-0.5 truncate text-xs text-[var(--muted)]">
@@ -646,7 +680,7 @@ export default function ProductsPage() {
                 }}
                 className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition active:scale-95 ${
                   selectedCategory === cat
-                    ? 'bg-[var(--accent-strong)] text-[var(--accent-foreground)]'
+                    ? 'bg-[var(--accent-strong)] text-[var(--card)]'
                     : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:border-[var(--accent)]/40'
                 }`}
               >
@@ -731,419 +765,518 @@ export default function ProductsPage() {
         )}
       </SectionCard>
 
-      {/* Create / Edit dialog */}
-      <AppDialog
+      {/* Create / Edit drawer */}
+      <Drawer
         open={formOpen}
-        onClose={closeForm}
-        title={editingId ? 'Edit item' : 'New item'}
-        description="Fill in item details. Required fields are marked."
-        size="lg"
+        onOpenChange={(open) => {
+          if (open) setFormOpen(true);
+          else closeForm();
+        }}
+        swipeDirection="right"
       >
-        {formApiError && (
-          <div className="mb-4 rounded-[12px] border border-[var(--status-danger)]/20 bg-[var(--status-danger)]/5 p-3 text-sm text-[var(--status-danger)]">
-            {formApiError}
-          </div>
-        )}
-
-        <form
-          id="product-form"
-          className="grid gap-4 sm:grid-cols-2"
-          onSubmit={(event) => {
-            void handleSubmit(handleSave)(event);
-          }}
-        >
-          <FormField
-            label="Item name"
-            htmlFor="item-name"
-            required
-            error={formErrors.name?.message}
-          >
-            <input
-              id="item-name"
-              {...register('name')}
-              placeholder="e.g. Caffè Latte"
-              className={inputClass(!!formErrors.name)}
-            />
-          </FormField>
-
-          <FormField
-            label="Description"
-            htmlFor="item-description"
-            className="sm:col-span-2"
-          >
-            <textarea
-              id="item-description"
-              {...register('description')}
-              rows={3}
-              placeholder="Add details about this item"
-              className={`${inputClass(false)} min-h-24 resize-y`}
-            />
-          </FormField>
-
-          <FormField label="Item image">
-            <div className="space-y-2">
-              <input
-                {...register('imageUrl')}
-                type="text"
-                inputMode="url"
-                placeholder="Paste an image URL"
-                className={inputClass(false)}
-              />
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--accent)]">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageFileChange}
-                  className="sr-only"
-                />
-                <span className="rounded-full border border-[var(--border)] px-3 py-1.5 hover:bg-[var(--surface-muted)]">
-                  Upload image
-                </span>
-                <span className="text-xs text-[var(--muted)]">Max 1.5 MB</span>
-              </label>
-              {imageUrl && (
-                <img
-                  src={imageUrl}
-                  alt="Item preview"
-                  className="h-24 w-32 rounded-[8px] border border-[var(--border)] object-cover"
-                />
-              )}
-            </div>
-          </FormField>
-
-          <FormField
-            label="Item type"
-            required
-            error={formErrors.type?.message}
-          >
-            <Controller
-              name="type"
-              control={control}
-              render={({ field }) => (
-                <AppSelect
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  options={[
-                    { value: '', label: 'Select category…', disabled: true },
-                    ...ITEM_TYPE_OPTIONS.map((type) => ({
-                      value: type,
-                      label: formatItemType(type),
-                    })),
-                  ]}
-                  className={selectClass()}
-                />
-              )}
-            />
-          </FormField>
-
-          <FormField label="Item category">
-            <Controller
-              name="categoryId"
-              control={control}
-              render={({ field }) => (
-                <AppSelect
-                  value={field.value ?? ''}
-                  onValueChange={field.onChange}
-                  options={[
-                    { value: '', label: 'Uncategorized' },
-                    ...categories.map((category) => ({
-                      value: category.id,
-                      label: category.name,
-                    })),
-                  ]}
-                  className={selectClass()}
-                  disabled={categoriesQuery.isLoading}
-                />
-              )}
-            />
-          </FormField>
-
-          <FormField
-            label="Unit of Measure (UOM)"
-            required
-            error={formErrors.uom?.message}
-          >
-            <Controller
-              name="uom"
-              control={control}
-              render={({ field }) => (
-                <AppSelect
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  options={[
-                    { value: '', label: 'Select UOM…', disabled: true },
-                    ...ITEM_UOM_OPTIONS.map((uom) => ({
-                      value: uom,
-                      label: formatUom(uom),
-                    })),
-                  ]}
-                  className={selectClass()}
-                />
-              )}
-            />
-          </FormField>
-
-          {isBundle && (
-            <div className="space-y-3 sm:col-span-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-medium">Bundle components</p>
-                  <p className="text-xs text-[var(--muted)]">
-                    Choose existing items and the quantity included in one
-                    bundle.
-                  </p>
-                </div>
-                <AppButton
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    appendComponent({ componentItemId: '', qty: 1 });
-                    clearErrors('itemComponents');
-                  }}
-                  disabled={
-                    rawMaterialItems.length === 0 ||
-                    componentItemsQuery.isLoading
-                  }
-                >
-                  <Plus size={14} />
-                  <span className="ml-2">Add component</span>
-                </AppButton>
+        <DrawerContent className="w-full md:w-[28rem]">
+          <DrawerHeader className="shrink-0 border-b border-[var(--border)] px-6 py-5 text-left">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
+                  {editingId ? 'Edit catalog' : 'Add to catalog'}
+                </p>
+                <DrawerTitle className="mt-1 text-lg font-bold text-[var(--primary)]">
+                  {editingId ? 'Edit item' : 'New item'}
+                </DrawerTitle>
               </div>
-
-              {formErrors.itemComponents?.message && (
-                <p className="text-xs text-[var(--status-danger)]">
-                  {formErrors.itemComponents.message}
-                </p>
+              <button
+                type="button"
+                onClick={closeForm}
+                disabled={isSaving}
+                aria-label="Close item form"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:opacity-50"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </DrawerHeader>
+          <form
+            id="product-form"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            onSubmit={(event) => {
+              void handleSubmit(handleSave)(event);
+            }}
+          >
+            <div className="grid min-h-0 flex-1 content-start gap-x-4 gap-y-3 overflow-y-auto px-6 py-5 sm:grid-cols-2 sm:gap-y-4">
+              {formApiError && (
+                <div className="rounded-[12px] border border-[var(--status-danger)]/20 bg-[var(--status-danger)]/5 p-3 text-sm text-[var(--status-danger)] sm:col-span-2">
+                  {formApiError}
+                </div>
               )}
-              {componentItemsQuery.isError && (
-                <p className="text-xs text-[var(--status-danger)]">
-                  Unable to load items for the bundle. Try again after reloading
-                  the catalog.
-                </p>
-              )}
+              <FormField
+                label="Item name"
+                htmlFor="item-name"
+                required
+                error={formErrors.name?.message}
+                className="sm:col-span-2"
+              >
+                <input
+                  id="item-name"
+                  {...register('name')}
+                  placeholder="e.g. Caffè Latte"
+                  className={inputClass(!!formErrors.name)}
+                />
+              </FormField>
 
-              {componentFields.map((component, index) => {
-                const selectedId = selectedComponents[index]?.componentItemId;
-                const existingComponent = items
-                  .find((item) => item.id === editingId)
-                  ?.itemComponents?.find(
-                    (itemComponent) =>
-                      itemComponent.componentItemId === selectedId,
-                  );
-                const componentError =
-                  formErrors.itemComponents?.[index]?.componentItemId?.message;
-                const quantityError =
-                  formErrors.itemComponents?.[index]?.qty?.message;
-                const componentOptions = rawMaterialItems
-                  .filter(
-                    (item) =>
-                      item.id === selectedId ||
-                      !selectedComponents.some(
-                        (selected, selectedIndex) =>
-                          selectedIndex !== index &&
-                          selected.componentItemId === item.id,
-                      ),
-                  )
-                  .map((item) => ({
-                    value: item.id,
-                    label: `${item.name} · ${formatItemType(item.type ?? '')}`,
-                  }));
+              <fieldset className="space-y-1.5 sm:col-span-2">
+                <legend className="text-sm font-medium">
+                  Item type{' '}
+                  <span className="text-[var(--status-danger)]">*</span>
+                </legend>
+                <Controller
+                  name="type"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="grid grid-cols-3 gap-2">
+                      {ITEM_TYPE_OPTIONS.map((type) => {
+                        const selected = field.value === type;
+                        return (
+                          <label
+                            key={type}
+                            className={`flex min-h-[3.25rem] cursor-pointer flex-col justify-center rounded-xl border px-2.5 py-2 transition-colors focus-within:ring-2 focus-within:ring-[var(--accent)] ${
+                              selected
+                                ? 'border-[var(--accent)] bg-[var(--surface-accent)]'
+                                : 'border-[var(--border)] bg-[var(--card)] hover:bg-[var(--surface-muted)]'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name={field.name}
+                              value={type}
+                              checked={selected}
+                              ref={selected ? field.ref : undefined}
+                              aria-invalid={Boolean(formErrors.type)}
+                              onChange={() => field.onChange(type)}
+                              onBlur={field.onBlur}
+                              className="sr-only"
+                            />
+                            <span className="flex items-center justify-between gap-1 text-[11px] font-semibold text-[var(--primary)]">
+                              {formatItemType(type)}
+                              {selected && (
+                                <Check
+                                  size={12}
+                                  className="shrink-0 text-[var(--accent-strong)]"
+                                />
+                              )}
+                            </span>
+                            <span className="mt-1 text-[10px] leading-tight text-[var(--muted)]">
+                              {ITEM_TYPE_DESCRIPTIONS[type]}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                />
+                {formErrors.type?.message && (
+                  <p className="text-xs text-[var(--status-danger)]">
+                    {formErrors.type.message}
+                  </p>
+                )}
+              </fieldset>
 
-                return (
-                  <div
-                    key={component.id}
-                    className="grid gap-2 rounded-xl border border-[var(--border)] p-3 sm:grid-cols-[minmax(0,1fr)_7rem_auto] sm:items-start"
-                  >
-                    <FormField
-                      label={`Component item ${index + 1}`}
-                      required
-                      error={componentError}
-                    >
-                      <Controller
-                        name={`itemComponents.${index}.componentItemId`}
-                        control={control}
-                        render={({ field }) => (
-                          <AppSelect
-                            value={field.value}
-                            valueLabel={
-                              existingComponent?.componentItem?.name
-                                ? `${existingComponent.componentItem.name} · existing component`
-                                : undefined
-                            }
-                            onValueChange={field.onChange}
-                            placeholder={
-                              componentItemsQuery.isLoading
-                                ? 'Loading items…'
-                                : componentOptions.length
-                                  ? 'Select an item'
-                                  : 'No component items available'
-                            }
-                            options={componentOptions}
-                            disabled={
-                              componentItemsQuery.isLoading ||
-                              rawMaterialItems.length === 0
-                            }
-                            className={selectClass()}
-                          />
-                        )}
-                      />
-                    </FormField>
+              <FormField label="Category">
+                <Controller
+                  name="categoryId"
+                  control={control}
+                  render={({ field }) => (
+                    <AppSelect
+                      value={field.value ?? ''}
+                      onValueChange={field.onChange}
+                      options={[
+                        { value: '', label: 'Uncategorized' },
+                        ...categories.map((category) => ({
+                          value: category.id,
+                          label: category.name,
+                        })),
+                      ]}
+                      className={selectClass()}
+                      disabled={categoriesQuery.isLoading}
+                    />
+                  )}
+                />
+              </FormField>
 
-                    <FormField label="Quantity" required error={quantityError}>
-                      <Controller
-                        name={`itemComponents.${index}.qty`}
-                        control={control}
-                        render={({ field }) => (
-                          <input
-                            type="number"
-                            min={1}
-                            step="any"
-                            value={field.value}
-                            onChange={(event) =>
-                              field.onChange(Number(event.target.value))
-                            }
-                            className={inputClass(!!quantityError)}
-                          />
-                        )}
-                      />
-                    </FormField>
+              <FormField
+                label="Unit of measure"
+                required
+                error={formErrors.uom?.message}
+              >
+                <Controller
+                  name="uom"
+                  control={control}
+                  render={({ field }) => (
+                    <AppSelect
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      options={[
+                        { value: '', label: 'Select UOM…', disabled: true },
+                        ...ITEM_UOM_OPTIONS.map((uom) => ({
+                          value: uom,
+                          label: formatUom(uom),
+                        })),
+                      ]}
+                      className={selectClass()}
+                    />
+                  )}
+                />
+              </FormField>
 
-                    <button
+              {isBundle && (
+                <div className="space-y-3 sm:col-span-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-medium">Bundle components</p>
+                      <p className="text-xs text-[var(--muted)]">
+                        Choose existing items and the quantity included in one
+                        bundle.
+                      </p>
+                    </div>
+                    <AppButton
                       type="button"
+                      variant="secondary"
                       onClick={() => {
-                        removeComponent(index);
+                        appendComponent({ componentItemId: '', qty: 1 });
                         clearErrors('itemComponents');
                       }}
-                      aria-label={`Remove component ${index + 1}`}
-                      className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl text-[var(--status-danger)] transition hover:bg-[var(--status-danger)]/5 sm:mt-6"
+                      disabled={
+                        rawMaterialItems.length === 0 ||
+                        componentItemsQuery.isLoading
+                      }
                     >
-                      <Trash2 size={16} />
-                    </button>
+                      <Plus size={13} />
+                      Add component
+                    </AppButton>
                   </div>
-                );
-              })}
-            </div>
-          )}
 
-          <FormField
-            label="Base Price (Rp)"
-            error={formErrors.basePrice?.message}
-          >
-            <Controller
-              name="basePrice"
-              control={control}
-              render={({ field }) => (
-                <input
-                  type="number"
-                  min={0}
-                  value={field.value || ''}
-                  onChange={(event) =>
-                    field.onChange(Number(event.target.value))
-                  }
-                  placeholder="0"
-                  className={inputClass(!!formErrors.basePrice)}
+                  {formErrors.itemComponents?.message && (
+                    <p className="text-xs text-[var(--status-danger)]">
+                      {formErrors.itemComponents.message}
+                    </p>
+                  )}
+                  {componentItemsQuery.isError && (
+                    <p className="text-xs text-[var(--status-danger)]">
+                      Unable to load items for the bundle. Try again after
+                      reloading the catalog.
+                    </p>
+                  )}
+
+                  {componentFields.length > 0 && (
+                    <div className="space-y-1.5">
+                      {componentFields.map((component, index) => {
+                        const selectedId =
+                          selectedComponents[index]?.componentItemId;
+                        const existingComponent = items
+                          .find((item) => item.id === editingId)
+                          ?.itemComponents?.find(
+                            (itemComponent) =>
+                              itemComponent.componentItemId === selectedId,
+                          );
+                        const componentError =
+                          formErrors.itemComponents?.[index]?.componentItemId
+                            ?.message;
+                        const quantityError =
+                          formErrors.itemComponents?.[index]?.qty?.message;
+                        const componentOptions = rawMaterialItems
+                          .filter(
+                            (item) =>
+                              item.id === selectedId ||
+                              !selectedComponents.some(
+                                (selected, selectedIndex) =>
+                                  selectedIndex !== index &&
+                                  selected.componentItemId === item.id,
+                              ),
+                          )
+                          .map((item) => ({
+                            value: item.id,
+                            label: `${item.name} · ${formatItemType(item.type ?? '')}`,
+                          }));
+
+                        return (
+                          <div
+                            key={component.id}
+                            className="grid gap-2 rounded-xl border border-[var(--border)] p-3 sm:grid-cols-[minmax(0,1fr)_7rem_auto] sm:items-start"
+                          >
+                            <FormField
+                              label={`Component item ${index + 1}`}
+                              required
+                              error={componentError}
+                            >
+                              <Controller
+                                name={`itemComponents.${index}.componentItemId`}
+                                control={control}
+                                render={({ field }) => (
+                                  <AppSelect
+                                    value={field.value}
+                                    valueLabel={
+                                      existingComponent?.componentItem?.name
+                                        ? `${existingComponent.componentItem.name} · existing component`
+                                        : undefined
+                                    }
+                                    onValueChange={field.onChange}
+                                    placeholder={
+                                      componentItemsQuery.isLoading
+                                        ? 'Loading items…'
+                                        : componentOptions.length
+                                          ? 'Select an item'
+                                          : 'No component items available'
+                                    }
+                                    options={componentOptions}
+                                    disabled={
+                                      componentItemsQuery.isLoading ||
+                                      rawMaterialItems.length === 0
+                                    }
+                                    className={selectClass()}
+                                  />
+                                )}
+                              />
+                            </FormField>
+
+                            <FormField
+                              label="Quantity"
+                              required
+                              error={quantityError}
+                            >
+                              <Controller
+                                name={`itemComponents.${index}.qty`}
+                                control={control}
+                                render={({ field }) => (
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    step="any"
+                                    value={field.value}
+                                    onChange={(event) =>
+                                      field.onChange(Number(event.target.value))
+                                    }
+                                    className={inputClass(!!quantityError)}
+                                  />
+                                )}
+                              />
+                            </FormField>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                removeComponent(index);
+                                clearErrors('itemComponents');
+                              }}
+                              aria-label={`Remove component ${index + 1}`}
+                              className="mt-1 flex h-10 w-10 items-center justify-center rounded-xl text-[var(--status-danger)] transition hover:bg-[var(--status-danger)]/5 sm:mt-6"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <FormField
+                label="Base price"
+                error={formErrors.basePrice?.message}
+              >
+                <Controller
+                  name="basePrice"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="relative">
+                      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-xs text-[var(--muted)]">
+                        Rp
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={field.value || ''}
+                        onChange={(event) =>
+                          field.onChange(Number(event.target.value))
+                        }
+                        placeholder="0"
+                        className={`${inputClass(!!formErrors.basePrice)} pl-9 text-right`}
+                      />
+                    </div>
+                  )}
+                />
+              </FormField>
+
+              <FormField
+                label="Selling price"
+                required
+                error={formErrors.sellingPrice?.message}
+              >
+                <Controller
+                  name="sellingPrice"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="relative">
+                      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-xs text-[var(--muted)]">
+                        Rp
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={field.value || ''}
+                        onChange={(event) =>
+                          field.onChange(Number(event.target.value))
+                        }
+                        placeholder="0"
+                        className={`${inputClass(!!formErrors.sellingPrice)} pl-9 text-right`}
+                      />
+                    </div>
+                  )}
+                />
+              </FormField>
+
+              {!isBundle && (
+                <Controller
+                  name="isMaintainStock"
+                  control={control}
+                  render={({ field }) => (
+                    <Field
+                      orientation="horizontal"
+                      className="items-start pt-2"
+                    >
+                      <Checkbox
+                        id="maintain-stock"
+                        name={field.name}
+                        checked={field.value}
+                        onBlur={field.onBlur}
+                        onCheckedChange={field.onChange}
+                      />
+                      <FieldContent>
+                        <FieldTitle>Is Maintain stock</FieldTitle>
+                        <FieldDescription className="text-[var()] text-xs">
+                          manage quantity on hand.
+                        </FieldDescription>
+                      </FieldContent>
+                    </Field>
+                  )}
                 />
               )}
-            />
-          </FormField>
-
-          <FormField
-            label="Selling Price (Rp)"
-            required
-            error={formErrors.sellingPrice?.message}
-          >
-            <Controller
-              name="sellingPrice"
-              control={control}
-              render={({ field }) => (
-                <input
-                  type="number"
-                  min={0}
-                  value={field.value || ''}
-                  onChange={(event) =>
-                    field.onChange(Number(event.target.value))
-                  }
-                  placeholder="0"
-                  className={inputClass(!!formErrors.sellingPrice)}
-                />
-              )}
-            />
-          </FormField>
-
-          {!isBundle && (
-            <Controller
-              name="isMaintainStock"
-              control={control}
-              render={({ field }) => (
-                <Field orientation="horizontal">
-                  <Checkbox
-                    id="maintain-stock"
-                    name={field.name}
-                    checked={field.value}
-                    onBlur={field.onBlur}
-                    onCheckedChange={field.onChange}
+              {!editingId && !isBundle && (
+                <FormField
+                  label="Opening stock"
+                  required
+                  error={formErrors.initialStock?.message}
+                >
+                  <Controller
+                    name="initialStock"
+                    control={control}
+                    render={({ field }) => (
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={field.value || ''}
+                        onChange={(event) =>
+                          field.onChange(Number(event.target.value))
+                        }
+                        placeholder="0"
+                        className={inputClass(!!formErrors.initialStock)}
+                      />
+                    )}
                   />
-                  <FieldContent>
-                    <FieldTitle>Maintain Stock</FieldTitle>
-                    <FieldDescription className="text-[var(--muted-2)]">
-                      If checked, stock will be injected and available for POS
-                      transactions.
-                    </FieldDescription>
-                  </FieldContent>
-                </Field>
+                </FormField>
               )}
-            />
-          )}
-          {!editingId && !isBundle && (
-            <FormField
-              label="Initial Stock"
-              required
-              error={formErrors.initialStock?.message}
-            >
-              <Controller
-                name="initialStock"
-                control={control}
-                render={({ field }) => (
+
+              <FormField label="Item image" className="sm:col-span-2">
+                <div className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-muted)]/50 p-2.5">
+                  {imageUrl ? (
+                    <img
+                      src={imageUrl}
+                      alt="Item preview"
+                      className="h-12 w-12 shrink-0 rounded-lg border border-[var(--border)] object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[var(--primary-foreground)] text-[var(--primary)]">
+                      <ImageIcon size={18} />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--primary)] transition hover:bg-[var(--surface-muted)]">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageFileChange}
+                          className="sr-only"
+                        />
+                        Upload image
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowImageUrlInput((current) => !current)
+                        }
+                        className="text-xs font-medium text-[var(--accent)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                      >
+                        {showImageUrlInput ? 'Hide image URL' : 'Use image URL'}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-[10px] text-[var(--muted)]">
+                      Max 1.5 MB. PNG or JPG.
+                    </p>
+                  </div>
+                </div>
+                {showImageUrlInput && (
                   <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={field.value || ''}
-                    onChange={(event) =>
-                      field.onChange(Number(event.target.value))
-                    }
-                    placeholder="0"
-                    className={inputClass(!!formErrors.initialStock)}
+                    {...register('imageUrl')}
+                    type="text"
+                    inputMode="url"
+                    placeholder="Paste an image URL"
+                    className={inputClass(false)}
                   />
                 )}
-              />
-            </FormField>
-          )}
-          <div className="mt-6 flex flex-wrap justify-end gap-2">
-            <AppButton
-              variant="secondary"
-              onClick={closeForm}
-              disabled={isSaving}
-            >
-              Cancel
-            </AppButton>
-            <AppButton
-              variant="primary"
-              type="submit"
-              disabled={isSaving || (Boolean(editingId) && !isFormDirty)}
-            >
-              <Save size={14} />
-              <span className="ml-2">
-                {isSaving
-                  ? 'Saving…'
-                  : editingId
-                    ? 'Save changes'
-                    : 'Create product'}
-              </span>
-            </AppButton>
-          </div>
-        </form>
-      </AppDialog>
+              </FormField>
+
+              <FormField
+                label="Description"
+                htmlFor="item-description"
+                className="sm:col-span-2"
+              >
+                <textarea
+                  id="item-description"
+                  {...register('description')}
+                  rows={1}
+                  placeholder="Add a short description..."
+                  className={`${inputClass(false)} min-h-10 resize-y`}
+                />
+              </FormField>
+            </div>
+            <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--border)] px-6 py-4">
+              <AppButton
+                variant="secondary"
+                onClick={closeForm}
+                disabled={isSaving}
+              >
+                Cancel
+              </AppButton>
+              <AppButton
+                variant="primary"
+                type="submit"
+                disabled={isSaving || (Boolean(editingId) && !isFormDirty)}
+              >
+                <Save size={14} />
+                <span className="ml-2">
+                  {isSaving
+                    ? 'Saving…'
+                    : editingId
+                      ? 'Save changes'
+                      : 'Create item'}
+                </span>
+              </AppButton>
+            </div>
+          </form>
+        </DrawerContent>
+      </Drawer>
 
       {/* Delete confirmation */}
       <ConfirmDeleteDialog
@@ -1170,7 +1303,7 @@ export default function ProductsPage() {
       {/* Mobile FAB */}
       <button
         onClick={openNew}
-        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent-strong)] text-[var(--accent-foreground)] shadow-[0_0_6px_rgba(0,0,0,0.24),0_8px_12px_rgba(0,0,0,0.14)] transition active:scale-95 md:hidden"
+        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent-strong)] text-[var(--card)] shadow-[0_0_6px_rgba(0,0,0,0.24),0_8px_12px_rgba(0,0,0,0.14)] transition active:scale-95 md:hidden"
         aria-label="Add item"
       >
         <Plus size={22} />

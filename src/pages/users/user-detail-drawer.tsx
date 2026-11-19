@@ -24,16 +24,32 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import { FormField } from '@/components/layout/form-field';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useIsMobile } from '@/hooks/use-mobile';
-import type { StoreMember } from '@/lib/stores/store-types';
+import {
+  STORE_MEMBER_ROLE_OPTIONS,
+  type StoreMember,
+} from '@/lib/stores/store-types';
 
 type UserDetailDrawerProps = {
   user: StoreMember | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   canDisableMember: boolean;
+  canEditMemberRole: boolean;
   isUpdatingMember: boolean;
   onRequestMembershipAction: (action: 'disable' | 'enable') => void;
+  selectedRole: StoreMember['role'];
+  onRoleChange: (role: StoreMember['role']) => void;
+  onSaveRole: () => void;
 };
 
 function formatDate(value: string | undefined) {
@@ -52,8 +68,12 @@ export function UserDetailDrawer({
   open,
   onOpenChange,
   canDisableMember,
+  canEditMemberRole,
   isUpdatingMember,
   onRequestMembershipAction,
+  selectedRole,
+  onRoleChange,
+  onSaveRole,
 }: UserDetailDrawerProps) {
   const isMobile = useIsMobile();
   const isActive = user?.status === 'active';
@@ -96,7 +116,7 @@ export function UserDetailDrawer({
                       <p className="text-xs font-medium uppercase tracking-[0.14em] text-[var(--muted)]">
                         Store member
                       </p>
-                      <DrawerTitle className="mt-1 truncate text-left text-lg font-semibold text-[var(--foreground)]">
+                      <DrawerTitle className="mt-1 truncate text-left text-lg font-semibold text-[var(--primary)]">
                         {user.user.username}
                       </DrawerTitle>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -121,7 +141,7 @@ export function UserDetailDrawer({
                       render={
                         <button
                           type="button"
-                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] text-[var(--foreground)] transition-colors hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] text-[var(--primary)] transition-colors hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                         />
                       }
                       aria-label="More member actions"
@@ -162,7 +182,7 @@ export function UserDetailDrawer({
                       <Mail size={15} aria-hidden="true" />
                       Email
                     </dt>
-                    <dd className="max-w-[65%] truncate text-right text-sm font-medium text-[var(--foreground)]">
+                    <dd className="max-w-[65%] truncate text-right text-sm font-medium text-[var(--primary)]">
                       {user.user.email}
                     </dd>
                   </div>
@@ -171,26 +191,75 @@ export function UserDetailDrawer({
                       <CalendarClock size={15} aria-hidden="true" />
                       Joined
                     </dt>
-                    <dd className="text-right text-sm font-medium text-[var(--foreground)]">
+                    <dd className="text-right text-sm font-medium text-[var(--primary)]">
                       {formatDate(user.createdAt)}
                     </dd>
                   </div>
                   <div className="flex items-center justify-between gap-4 py-3.5">
                     <dt className="text-sm text-[var(--muted)]">Updated</dt>
-                    <dd className="text-right text-sm font-medium text-[var(--foreground)]">
+                    <dd className="text-right text-sm font-medium text-[var(--primary)]">
                       {formatDate(user.updatedAt)}
                     </dd>
                   </div>
                   <div className="flex items-center justify-between gap-4 py-3.5">
                     <dt className="text-sm text-[var(--muted)]">User ID</dt>
                     <dd
-                      className="max-w-[55%] truncate text-right text-xs font-medium text-[var(--foreground)]"
+                      className="max-w-[55%] truncate text-right text-xs font-medium text-[var(--primary)]"
                       title={user.userId}
                     >
                       {user.userId}
                     </dd>
                   </div>
                 </dl>
+                {canEditMemberRole && (
+                  <div className="mt-5 flex flex-col gap-3">
+                    <FormField
+                      label="Store role"
+                      htmlFor="edit-store-member-role"
+                      description="Only the member's store role can be changed."
+                    >
+                      <Select
+                        value={selectedRole}
+                        onValueChange={(value) => {
+                          if (value === 'admin' || value === 'cashier') {
+                            onRoleChange(value);
+                          }
+                        }}
+                      >
+                        <SelectTrigger
+                          id="edit-store-member-role"
+                          className="h-10 w-full"
+                          disabled={isUpdatingMember}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent align="start">
+                          <SelectGroup>
+                            {STORE_MEMBER_ROLE_OPTIONS.map((role) => (
+                              <SelectItem
+                                key={role.value}
+                                value={role.value}
+                              >
+                                {role.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </FormField>
+                    <div className="flex justify-end">
+                      <AppButton
+                        variant="primary"
+                        onClick={onSaveRole}
+                        disabled={
+                          isUpdatingMember || selectedRole === user.role
+                        }
+                      >
+                        {isUpdatingMember ? 'Saving...' : 'Save role'}
+                      </AppButton>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <DrawerFooter className="border-t border-[var(--border)]/70 px-5 py-4">
@@ -201,7 +270,7 @@ export function UserDetailDrawer({
                       onRequestMembershipAction(isActive ? 'disable' : 'enable')
                     }
                     disabled={isUpdatingMember}
-                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[var(--border-strong)] px-4 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:pointer-events-none disabled:opacity-50"
+                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-[var(--border-strong)] px-4 text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:pointer-events-none disabled:opacity-50"
                   >
                     {isActive ? (
                       <UserRoundMinus size={16} aria-hidden="true" />

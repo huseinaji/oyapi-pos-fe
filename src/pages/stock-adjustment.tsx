@@ -10,8 +10,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppButton } from '@/components/ui/app-button';
-import { AppDialog } from '@/components/ui/app-dialog';
 import { AppSelect } from '@/components/ui/app-select';
+import { AppDialog } from '@/components/ui/app-dialog';
+import { StockAdjustmentDetailDrawer } from '@/pages/stock-adjustment-detail-drawer';
 import { PageHeader } from '@/components/ui/page-header';
 import { SectionCard } from '@/components/ui/section-card';
 import { TablePagination } from '@/components/ui/table-pagination';
@@ -82,6 +83,9 @@ export default function StockAdjustmentPage() {
   );
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedAdjustment, setSelectedAdjustment] =
+    useState<StockAdjustment | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [adjustmentType, setAdjustmentType] =
     useState<StockAdjustmentType>('issue');
   const [remarks, setRemarks] = useState('');
@@ -137,10 +141,10 @@ export default function StockAdjustmentPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="min-w-0">
-            <p className="max-w-40 truncate font-semibold text-[var(--foreground)]">
+            <p className="max-w-40 truncate font-semibold text-[var(--primary)]">
               {row.original.id}
             </p>
-            <p className="mt-1 text-xs text-[var(--muted-2)]">
+            <p className="mt-1 text-xs text-[var()]">
               {row.original.items.length}{' '}
               {row.original.items.length === 1 ? 'item' : 'items'}
             </p>
@@ -192,11 +196,11 @@ export default function StockAdjustmentPage() {
 
           return (
             <div className="max-w-48">
-              <p className="truncate text-sm font-medium text-[var(--foreground)]">
+              <p className="truncate text-sm font-medium text-[var(--primary)]">
                 {firstItem?.items?.name ?? firstItem?.itemId ?? '—'}
               </p>
               {remainingItems > 0 && (
-                <p className="mt-1 text-xs text-[var(--muted-2)]">
+                <p className="mt-1 text-xs text-[var()]">
                   +{remainingItems} barang lainnya
                 </p>
               )}
@@ -230,7 +234,7 @@ export default function StockAdjustmentPage() {
 
           return (
             <div className="min-w-0 overflow-hidden">
-              <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+              <p className="truncate text-sm font-semibold text-[var(--primary)]">
                 {firstItem?.items?.name ?? firstItem?.itemId ?? 'Adjustment'}
               </p>
               <p className="mt-0.5 truncate text-xs text-[var(--muted)]">
@@ -311,6 +315,11 @@ export default function StockAdjustmentPage() {
     setDialogOpen(true);
   };
 
+  const openAdjustmentDetails = (adjustment: StockAdjustment) => {
+    setSelectedAdjustment(adjustment);
+    setDetailOpen(true);
+  };
+
   const closeCreateDialog = () => {
     if (createMutation.isPending) return;
     setDialogOpen(false);
@@ -351,14 +360,16 @@ export default function StockAdjustmentPage() {
     }
 
     try {
-      await createMutation.mutateAsync({
+      const body = {
         type: adjustmentType,
         ...(remarks.trim() ? { remarks: remarks.trim() } : {}),
         items: draftLines.map((line) => ({
           itemId: line.itemId,
           qty: Number(line.quantity),
         })),
-      });
+      };
+
+      await createMutation.mutateAsync(body);
       setDialogOpen(false);
       toast.success('Penyesuaian stok berhasil dibuat');
     } catch (error) {
@@ -399,7 +410,7 @@ export default function StockAdjustmentPage() {
               <Search
                 size={16}
                 aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-2)]"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var()]"
               />
               <input
                 type="search"
@@ -407,7 +418,7 @@ export default function StockAdjustmentPage() {
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Cari barang atau catatan"
                 aria-label="Cari stock adjustment"
-                className="w-full rounded-[10px] border border-[var(--border)] bg-[var(--card)] py-2.5 pl-9 pr-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-2)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
+                className="w-full rounded-[10px] border border-[var(--border)] bg-[var(--card)] py-2.5 pl-9 pr-3 text-sm text-[var(--primary)] outline-none placeholder:text-[var()] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
               />
             </label>
             <AppSelect
@@ -431,7 +442,7 @@ export default function StockAdjustmentPage() {
               disabled={adjustmentsQuery.isFetching}
               aria-label="Muat ulang daftar"
               title="Muat ulang daftar"
-              className="inline-flex h-10 w-10 shrink-0 items-center justify-center self-end rounded-[10px] border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center self-end rounded-[10px] border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50 sm:self-auto"
             >
               <RefreshCw
                 size={16}
@@ -444,7 +455,7 @@ export default function StockAdjustmentPage() {
 
         {adjustmentsQuery.isError ? (
           <div className="px-5 py-12 text-center" role="alert">
-            <p className="font-semibold text-[var(--foreground)]">
+            <p className="font-semibold text-[var(--primary)]">
               Riwayat adjustment tidak dapat dimuat
             </p>
             <p className="mx-auto mt-2 max-w-[60ch] text-sm text-[var(--muted)]">
@@ -473,7 +484,7 @@ export default function StockAdjustmentPage() {
               aria-hidden="true"
               className="mx-auto text-[var(--accent)]"
             />
-            <p className="mt-3 font-semibold text-[var(--foreground)]">
+            <p className="mt-3 font-semibold text-[var(--primary)]">
               {adjustments.length === 0
                 ? 'Belum ada stock adjustment'
                 : 'Adjustment tidak ditemukan'}
@@ -494,7 +505,11 @@ export default function StockAdjustmentPage() {
           </div>
         ) : (
           <>
-            <TransactionsTable desktopTable={table} mobileTable={mobileTable} />
+            <TransactionsTable
+              desktopTable={table}
+              mobileTable={mobileTable}
+              onRowClick={openAdjustmentDetails}
+            />
             <div className="px-3 md:px-4">
               <div className="hidden md:block">
                 <TablePagination table={table} />
@@ -516,7 +531,7 @@ export default function StockAdjustmentPage() {
       >
         <form onSubmit={submitAdjustment} className="space-y-5">
           <fieldset>
-            <legend className="mb-2 text-sm font-medium text-[var(--foreground)]">
+            <legend className="mb-2 text-sm font-medium text-[var(--primary)]">
               Tipe adjustment
             </legend>
             <div className="grid grid-cols-2 gap-2">
@@ -546,7 +561,7 @@ export default function StockAdjustmentPage() {
                 );
               })}
             </div>
-            <p className="mt-2 text-xs text-[var(--muted-2)]">
+            <p className="mt-2 text-xs text-[var()]">
               {adjustmentType === 'receive'
                 ? 'Jumlah akan ditambahkan ke stok saat ini.'
                 : 'Jumlah akan dikurangi dari stok saat ini.'}
@@ -556,10 +571,10 @@ export default function StockAdjustmentPage() {
           <div>
             <label
               htmlFor="adjustment-remarks"
-              className="mb-2 block text-sm font-medium text-[var(--foreground)]"
+              className="mb-2 block text-sm font-medium text-[var(--primary)]"
             >
               Catatan{' '}
-              <span className="font-normal text-[var(--muted-2)]">
+              <span className="font-normal text-[var()]">
                 (opsional)
               </span>
             </label>
@@ -570,12 +585,12 @@ export default function StockAdjustmentPage() {
               rows={2}
               maxLength={500}
               placeholder="Contoh: hasil stock opname, barang rusak"
-              className="w-full resize-y rounded-[10px] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-2)] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
+              className="w-full resize-y rounded-[10px] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--primary)] outline-none placeholder:text-[var()] focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
             />
           </div>
 
           <fieldset>
-            <legend className="mb-2 text-sm font-medium text-[var(--foreground)]">
+            <legend className="mb-2 text-sm font-medium text-[var(--primary)]">
               Barang yang disesuaikan
             </legend>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -634,7 +649,7 @@ export default function StockAdjustmentPage() {
             )}
 
             {draftLines.length === 0 ? (
-              <p className="mt-3 rounded-[10px] border border-dashed border-[var(--border-strong)] px-4 py-5 text-center text-sm text-[var(--muted)]">
+              <p className="mt-3 rounded-[10px] border border-dashed px-4 py-5 text-center text-sm text-[var(--muted)]">
                 Belum ada barang. Pilih barang di atas untuk memulai.
               </p>
             ) : (
@@ -642,6 +657,9 @@ export default function StockAdjustmentPage() {
                 {draftLines.map((line) => {
                   const product = productsById.get(line.itemId);
                   if (!product) return null;
+
+                  const itemName = product.name;
+                  const itemUom = product.uom;
 
                   const quantity = Number(line.quantity) || 0;
                   const afterStock =
@@ -656,11 +674,11 @@ export default function StockAdjustmentPage() {
                       className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 sm:flex-nowrap"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-[var(--foreground)]">
-                          {product.name}
+                        <p className="truncate text-sm font-medium text-[var(--primary)]">
+                          {itemName}
                         </p>
-                        <p className="mt-0.5 text-xs text-[var(--muted-2)]">
-                          Stok {getStock(product)} {product.uom}
+                        <p className="mt-0.5 text-xs text-[var()]">
+                          Stok {product ? getStock(product) : '—'} {itemUom}
                           <span
                             className={
                               hasNegativeBalance
@@ -669,12 +687,12 @@ export default function StockAdjustmentPage() {
                             }
                           >
                             {' '}
-                            → {afterStock} {product.uom}
+                            → {product ? afterStock : '—'} {itemUom}
                           </span>
                         </p>
                       </div>
                       <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                        <span className="sr-only">Jumlah {product.name}</span>
+                        <span className="sr-only">Jumlah {itemName}</span>
                         <input
                           type="number"
                           min="1"
@@ -684,16 +702,16 @@ export default function StockAdjustmentPage() {
                           onChange={(event) =>
                             updateDraftLine(line.itemId, event.target.value)
                           }
-                          className="w-24 rounded-[8px] border border-[var(--border)] bg-[var(--card)] px-2.5 py-2 text-right text-sm tabular-nums text-[var(--foreground)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
+                          className="w-24 rounded-[8px] border border-[var(--border)] bg-[var(--card)] px-2.5 py-2 text-right text-sm tabular-nums text-[var(--primary)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15"
                           aria-invalid={!isValidQuantity(line.quantity)}
                         />
-                        {product.uom}
+                        {itemUom}
                       </label>
                       <button
                         type="button"
                         onClick={() => removeDraftLine(line.itemId)}
-                        aria-label={`Hapus ${product.name}`}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted-2)] transition hover:bg-[var(--status-danger)]/10 hover:text-[var(--status-danger)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                        aria-label={`Hapus ${itemName}`}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var()] transition hover:bg-[var(--status-danger)]/10 hover:text-[var(--status-danger)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                       >
                         <Trash2 size={16} aria-hidden="true" />
                       </button>
@@ -703,7 +721,6 @@ export default function StockAdjustmentPage() {
               </div>
             )}
           </fieldset>
-
           <div className="flex flex-col-reverse justify-between gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-center">
             <p className="text-sm text-[var(--muted)]">
               {draftLines.length} barang dipilih
@@ -742,6 +759,12 @@ export default function StockAdjustmentPage() {
           </div>
         </form>
       </AppDialog>
+
+      <StockAdjustmentDetailDrawer
+        adjustment={selectedAdjustment}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+      />
     </div>
   );
 }

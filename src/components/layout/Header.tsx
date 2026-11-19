@@ -179,7 +179,7 @@ export default function Header({ currentUser, isDark, theme }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--background)]/90 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--card)]/90 backdrop-blur">
       <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
           <SidebarTrigger
@@ -218,7 +218,7 @@ export default function Header({ currentUser, isDark, theme }: HeaderProps) {
           <button
             type="button"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--primary)]"
             aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             title={isDark ? 'Light mode' : 'Dark mode'}
           >
@@ -233,7 +233,7 @@ export default function Header({ currentUser, isDark, theme }: HeaderProps) {
                   panel === 'notifications' ? null : 'notifications',
                 )
               }
-              className="relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--primary)]"
               aria-label="Notifications"
               aria-expanded={headerPanel === 'notifications'}
               aria-controls="header-notifications"

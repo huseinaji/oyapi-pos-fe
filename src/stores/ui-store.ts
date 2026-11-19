@@ -19,17 +19,14 @@ const store = createStore<UIState>({
   isMobile: false,
   theme: 'light',
 
-  toggleSidebar: () =>
-    store.setState((s) => ({ sidebarOpen: !s.sidebarOpen })),
+  toggleSidebar: () => store.setState((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
   collapseSidebar: () =>
     store.setState({ sidebarCollapsed: true, sidebarOpen: false }),
 
-  expandSidebar: () =>
-    store.setState({ sidebarCollapsed: false }),
+  expandSidebar: () => store.setState({ sidebarCollapsed: false }),
 
-  setMobile: (mobile) =>
-    store.setState({ isMobile: mobile }),
+  setMobile: (mobile) => store.setState({ isMobile: mobile }),
 
   setTheme: (theme) => {
     store.setState({ theme });
@@ -42,7 +39,9 @@ const store = createStore<UIState>({
   initializeTheme: () => {
     if (typeof document === 'undefined') return;
     const saved = localStorage.getItem('pos-theme') as 'light' | 'dark' | null;
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const prefersDark = window.matchMedia(
+      '(prefers-color-scheme: dark)',
+    ).matches;
     const theme = saved ?? (prefersDark ? 'dark' : 'light');
     document.documentElement.classList.toggle('dark', theme === 'dark');
     store.setState({ theme });

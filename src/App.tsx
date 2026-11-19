@@ -1,9 +1,9 @@
-import { lazy, Suspense, type FC } from "react"
-import { RoutesIndex } from "./routes"
+import { lazy, Suspense, type FC } from 'react';
+import { RoutesIndex } from './routes';
 import { Toaster } from './components/ui/sonner';
 import { ThemeScript } from './components/theme-script';
 import { DismissToastsOnInteraction } from './components/ui/dismiss-toasts-on-interaction';
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Devtools are lazy-loaded and only rendered in development.
 // This keeps them out of the production bundle entirely.
@@ -27,7 +27,7 @@ export const App: FC = () => {
         toastOptions={{
           style: {
             background: 'var(--card)',
-            color: 'var(--foreground)',
+            color: 'var(--primary)',
             border: '1px solid var(--border)',
             borderRadius: '12px',
             fontSize: '13px',
@@ -42,5 +42,5 @@ export const App: FC = () => {
         </Suspense>
       )}
     </QueryClientProvider>
-  )
-}
+  );
+};

@@ -24,6 +24,7 @@ import { FormField } from '@/components/layout/form-field';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -38,19 +39,19 @@ import { ApiError } from '@/lib/api';
 import {
   useAssignStoreMemberMutation,
   useDisableStoreMemberMutation,
+  useEditStoreMemberMutation,
   useStoreMembersQuery,
 } from '@/lib/stores/store-store';
 import { usersApi } from '@/lib/user/users-api';
-import type { StoreMember } from '@/lib/stores/store-types';
+import {
+  STORE_MEMBER_ROLE_OPTIONS,
+  type StoreMember,
+} from '@/lib/stores/store-types';
 import { UsersPagination } from './users-pagination';
 import { UsersTable } from './users-table';
 import { UserDetailDrawer } from './user-detail-drawer';
 
 const ROLE_OPTIONS = ['all', 'admin', 'cashier'] as const;
-const STORE_ROLE_OPTIONS = [
-  { label: 'Cashier', value: 'cashier' },
-  { label: 'Admin', value: 'admin' },
-] as const;
 type RoleFilter = (typeof ROLE_OPTIONS)[number];
 
 function extractApiError(error: unknown): string {
@@ -68,7 +69,7 @@ function RoleBadge({ role }: { role: StoreMember['role'] }) {
 }
 
 function inputClass(hasError: boolean) {
-  return `h-[52px] w-full rounded-[12px] border bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--foreground)] outline-none transition focus:ring-2 ${
+  return `h-[52px] w-full rounded-[12px] border bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--primary)] outline-none transition focus:ring-2 ${
     hasError
       ? 'border-[var(--status-danger)] focus:ring-[var(--status-danger)]/20'
       : 'border-[var(--border)] focus:border-[var(--accent)] focus:ring-[var(--accent)]/20'
@@ -81,6 +82,7 @@ export default function UsersPage() {
   const membersQuery = useStoreMembersQuery(storeId);
   const assignMutation = useAssignStoreMemberMutation(storeId);
   const disableMemberMutation = useDisableStoreMemberMutation(storeId);
+  const editMemberMutation = useEditStoreMemberMutation(storeId);
   const members = membersQuery.data?.rows ?? [];
   console.log(members);
 
@@ -97,6 +99,8 @@ export default function UsersPage() {
   const [isAssigning, setIsAssigning] = useState(false);
   const [detailMember, setDetailMember] = useState<StoreMember | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedMemberRole, setSelectedMemberRole] =
+    useState<StoreMember['role']>('cashier');
   const [membershipAction, setMembershipAction] = useState<
     'disable' | 'enable' | null
   >(null);
@@ -287,6 +291,34 @@ export default function UsersPage() {
     }
   };
 
+  const handleUpdateMemberRole = async () => {
+    if (!isStoreAdmin || !storeId) {
+      toast.error('Unable to update member role', {
+        description: !storeId
+          ? 'Select an active store and try again.'
+          : 'Only an administrator of this store can change member roles.',
+      });
+      return;
+    }
+    if (!detailMember || selectedMemberRole === detailMember.role) return;
+
+    try {
+      await editMemberMutation.mutateAsync({
+        memberId: detailMember.id,
+        userId: detailMember.userId,
+        role: selectedMemberRole,
+      });
+      toast.success('Member role updated', {
+        description: `${detailMember.user.username} is now a ${selectedMemberRole}.`,
+      });
+      setDetailOpen(false);
+    } catch (error) {
+      toast.error('Unable to update member role', {
+        description: extractApiError(error),
+      });
+    }
+  };
+
   const handleConfirmMembershipAction = async () => {
     if (!membershipAction || !detailMember) return;
 
@@ -298,7 +330,9 @@ export default function UsersPage() {
   };
 
   const isUpdatingMember =
-    disableMemberMutation.isPending || assignMutation.isPending;
+    disableMemberMutation.isPending ||
+    assignMutation.isPending ||
+    editMemberMutation.isPending;
 
   const columns = useMemo<ColumnDef<StoreMember>[]>(
     () => [
@@ -474,7 +508,7 @@ export default function UsersPage() {
                 }}
                 className={`rounded-full px-4 py-2 text-sm font-medium capitalize transition active:scale-95 ${
                   roleFilter === role
-                    ? 'bg-[var(--accent-strong)] text-[var(--accent-foreground)]'
+                    ? 'bg-[var(--accent-strong)] text-[var(--card)]'
                     : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:border-[var(--accent)]/40'
                 }`}
               >
@@ -520,6 +554,7 @@ export default function UsersPage() {
                   mobileTable={mobileTable}
                   onRowClick={(member) => {
                     setDetailMember(member);
+                    setSelectedMemberRole(member.role);
                     setDetailOpen(true);
                   }}
                 />
@@ -565,8 +600,12 @@ export default function UsersPage() {
         canDisableMember={
           isStoreAdmin && detailMember?.userId !== currentUser?.sub
         }
+        canEditMemberRole={isStoreAdmin}
         isUpdatingMember={isUpdatingMember}
         onRequestMembershipAction={setMembershipAction}
+        selectedRole={selectedMemberRole}
+        onRoleChange={setSelectedMemberRole}
+        onSaveRole={() => void handleUpdateMemberRole()}
       />
 
       <AppDialog
@@ -712,7 +751,7 @@ export default function UsersPage() {
                       className={`flex w-full flex-col rounded-[10px] px-3 py-2 text-left text-sm transition focus-visible:outline-2 focus-visible:outline-[var(--accent)] ${
                         selectedAssignUsername === user.username
                           ? 'bg-[var(--accent)]/12 text-[var(--accent)]'
-                          : 'text-[var(--foreground)] hover:bg-[var(--accent)]/8 hover:text-[var(--accent)]'
+                          : 'text-[var(--primary)] hover:bg-[var(--accent)]/8 hover:text-[var(--accent)]'
                       }`}
                     >
                       <span className="font-medium">{user.username}</span>
@@ -756,15 +795,17 @@ export default function UsersPage() {
               alignItemWithTrigger={false}
               className="box-border rounded-xl border border-[var(--border)] shadow-[0_8px_24px_rgba(0,0,0,0.12)] ring-0"
             >
-              {STORE_ROLE_OPTIONS.map((role) => (
-                <SelectItem
-                  key={role.value}
-                  value={role.value}
-                  className="rounded-lg px-3 py-2 transition-colors duration-150 data-[highlighted]:bg-[var(--surface-accent)] data-[highlighted]:text-[var(--accent)] focus:bg-[var(--surface-accent)] focus:text-[var(--accent)]"
-                >
-                  {role.label}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {STORE_MEMBER_ROLE_OPTIONS.map((role) => (
+                  <SelectItem
+                    key={role.value}
+                    value={role.value}
+                    className="rounded-lg px-3 py-2 transition-colors duration-150 data-[highlighted]:bg-[var(--surface-accent)] data-[highlighted]:text-[var(--accent)] focus:bg-[var(--surface-accent)] focus:text-[var(--accent)]"
+                  >
+                    {role.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </FormField>

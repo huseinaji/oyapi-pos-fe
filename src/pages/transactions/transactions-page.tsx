@@ -532,7 +532,7 @@ export default function TransactionsPage() {
               <Filter size={16} className="text-[var(--accent)]" />
               Advanced filters
               {activeFilterCount > 0 && (
-                <span className="rounded-full bg-[var(--accent-strong)] px-2 py-0.5 text-xs text-[var(--accent-foreground)]">
+                <span className="rounded-full bg-[var(--accent-strong)] px-2 py-0.5 text-xs text-[var(--card)]">
                   {activeFilterCount}
                 </span>
               )}
@@ -556,7 +556,7 @@ export default function TransactionsPage() {
                       onClick={() => applyDatePreset(preset.id)}
                       className={`rounded-full px-3 py-1.5 text-xs font-medium transition active:scale-95 ${
                         datePreset === preset.id
-                          ? 'bg-[var(--accent-strong)] text-[var(--accent-foreground)]'
+                          ? 'bg-[var(--accent-strong)] text-[var(--card)]'
                           : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)]'
                       }`}
                     >
@@ -594,7 +594,7 @@ export default function TransactionsPage() {
                         onClick={() => updateFilter('status', status)}
                         className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize transition active:scale-95 ${
                           filters.status === status
-                            ? 'bg-[var(--accent-strong)] text-[var(--accent-foreground)]'
+                            ? 'bg-[var(--accent-strong)] text-[var(--card)]'
                             : 'border border-[var(--border)] bg-[var(--card)] text-[var(--muted)]'
                         }`}
                       >
@@ -662,7 +662,7 @@ export default function TransactionsPage() {
         )}
         {totalTransactions > 0 && (
           <>
-            <div className="hidden md:block">
+            <div className="mt-6 hidden md:block">
               <TablePagination
                 table={desktopTable}
                 pagination={pagination}
@@ -675,7 +675,7 @@ export default function TransactionsPage() {
                 }
               />
             </div>
-            <div className="md:hidden">
+            <div className="mt-6 md:hidden">
               <TablePagination
                 table={mobileTable}
                 pagination={pagination}

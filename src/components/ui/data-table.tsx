@@ -1,8 +1,5 @@
 import type { ReactNode } from 'react';
-import {
-  flexRender,
-  type Table as TanStackTable,
-} from '@tanstack/react-table';
+import { flexRender, type Table as TanStackTable } from '@tanstack/react-table';
 import {
   Table,
   TableBody,
@@ -45,7 +42,9 @@ export function DataTable<TData>({
     <div className={cn('w-full', containerClassName)}>
       <Table className={cn('text-sm', tableClassName)}>
         {showHeader && (
-          <TableHeader className={cn('bg-[var(--surface-muted)]', headerClassName)}>
+          <TableHeader
+            className={cn('bg-[var(--surface-muted)]', headerClassName)}
+          >
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="hover:bg-transparent">
                 {headerGroup.headers.map((header) => {
@@ -55,10 +54,7 @@ export function DataTable<TData>({
                   );
 
                   return (
-                    <TableHead
-                      key={header.id}
-                      className="h-11"
-                    >
+                    <TableHead key={header.id} className="h-11">
                       {content}
                     </TableHead>
                   );
@@ -78,7 +74,9 @@ export function DataTable<TData>({
               return (
                 <TableRow
                   key={row.id}
-                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                  onClick={
+                    onRowClick ? () => onRowClick(row.original) : undefined
+                  }
                   tabIndex={onRowClick ? 0 : undefined}
                   onKeyDown={
                     onRowClick
@@ -97,7 +95,10 @@ export function DataTable<TData>({
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>

@@ -47,7 +47,7 @@ export function ConfirmDeleteDialog({
           />
           <div className="text-sm">
             {itemName && (
-              <p className="font-semibold text-[var(--foreground)]">
+              <p className="font-semibold text-[var(--primary)]">
                 &ldquo;{itemName}&rdquo;
               </p>
             )}

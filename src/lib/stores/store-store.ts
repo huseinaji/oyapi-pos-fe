@@ -1,7 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { StoreApi } from './store-api';
 import { authQueryKeys, useMeQuery } from '@/lib/auth/auth-store';
-import type { AssignStoreMemberDto, CreateStoreDto } from './store-types';
+import type {
+  AssignStoreMemberDto,
+  CreateStoreDto,
+  EditStoreMemberDto,
+} from './store-types';
 
 export const storeQueryKeys = {
   myStores: ['listMyStore'] as const,
@@ -37,6 +41,29 @@ export function useAssignStoreMemberMutation(storeId: string | undefined) {
         throw new Error('An active store is required to assign a member.');
       }
       return StoreApi.assignMember(storeId, body);
+    },
+    onSuccess: async () => {
+      if (storeId) {
+        await queryClient.invalidateQueries({
+          queryKey: storeMemberQueryKeys.list(storeId),
+        });
+      }
+    },
+  });
+}
+
+export function useEditStoreMemberMutation(storeId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      memberId,
+      ...body
+    }: EditStoreMemberDto & { memberId: string }) => {
+      if (!storeId) {
+        throw new Error('An active store is required to edit a member.');
+      }
+      return StoreApi.editMember(storeId, memberId, body);
     },
     onSuccess: async () => {
       if (storeId) {

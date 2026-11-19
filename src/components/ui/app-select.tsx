@@ -133,7 +133,7 @@ export function AppSelect({
             className={`flex w-full items-center justify-between rounded-[10px] px-3 py-2 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-40 ${
               isSelected
                 ? 'bg-[var(--accent)]/12 text-[var(--accent)]'
-                : 'text-[var(--foreground)] hover:bg-[var(--accent)]/8 hover:text-[var(--accent)]'
+                : 'text-[var(--primary)] hover:bg-[var(--accent)]/8 hover:text-[var(--accent)]'
             }`}
           >
             <span>{option.label}</span>
@@ -186,7 +186,7 @@ export function AppSelect({
         <span
           className={
             selected || valueLabel
-              ? 'text-[var(--foreground)]'
+              ? 'text-[var(--primary)]'
               : 'text-[var(--muted)]'
           }
         >

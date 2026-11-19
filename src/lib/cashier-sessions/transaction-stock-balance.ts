@@ -24,7 +24,10 @@ export function calculateClosingStockFromSales(
 
     for (const line of invoice.salesInvoiceItems ?? []) {
       if (!Number.isFinite(line.qty)) continue;
-      soldByItem.set(line.itemId, (soldByItem.get(line.itemId) ?? 0) + line.qty);
+      soldByItem.set(
+        line.itemId,
+        (soldByItem.get(line.itemId) ?? 0) + line.qty,
+      );
     }
   }
 

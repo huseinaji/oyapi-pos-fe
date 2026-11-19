@@ -2,6 +2,14 @@ import type { ApiStoreRole, ApiUserRole, ApiUserStatus } from '@/types/api';
 
 export type StoreRole = ApiStoreRole;
 
+export const STORE_MEMBER_ROLE_OPTIONS: ReadonlyArray<{
+  label: string;
+  value: StoreRole;
+}> = [
+  { label: 'Cashier', value: 'cashier' },
+  { label: 'Admin', value: 'admin' },
+];
+
 export type StoreMember = ApiStoreMember & {
   createdAt: string;
   updatedAt: string;
@@ -60,6 +68,11 @@ export type StoreMemberListResponse = {
 };
 
 export type AssignStoreMemberDto = {
+  userId: string;
+  role: StoreRole;
+};
+
+export type EditStoreMemberDto = {
   userId: string;
   role: StoreRole;
 };

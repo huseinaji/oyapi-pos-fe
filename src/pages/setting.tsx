@@ -49,7 +49,8 @@ const settingsSchema = z.object({
 type SettingsForm = z.infer<typeof settingsSchema>;
 
 export default function SettingsPage() {
-  const { data: storeData, isSuccess: isStoreLoaded } = useGetCurrentStoreQuery();
+  const { data: storeData, isSuccess: isStoreLoaded } =
+    useGetCurrentStoreQuery();
   const [settings, setSettings] = useState<StoreSettings>(defaultSettings);
   const [logoPreview, setLogoPreview] = useState(settings.logoUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -356,9 +357,7 @@ export default function SettingsPage() {
                     <ShoppingCart size={16} />
                   </div>
                 )}
-                <p className="font-semibold">
-                  {watched.name || 'Store name'}
-                </p>
+                <p className="font-semibold">{watched.name || 'Store name'}</p>
                 {watched.address && (
                   <p className="mt-0.5 text-[11px] text-[var(--muted)]">
                     {watched.address}
@@ -401,7 +400,7 @@ export default function SettingsPage() {
                     ).toLocaleString('id-ID')}
                   </span>
                 </div>
-                <div className="flex justify-between font-semibold text-[var(--foreground)]">
+                <div className="flex justify-between font-semibold text-[var(--primary)]">
                   <span>Total</span>
                   <span>
                     Rp{' '}
@@ -497,7 +496,7 @@ function Field({
       </label>
       {children}
       {hint && !error && (
-        <p className="mt-1.5 text-xs text-[var(--muted-2)]">{hint}</p>
+        <p className="mt-1.5 text-xs">{hint}</p>
       )}
       {error && (
         <p className="mt-1.5 text-xs text-[var(--status-danger)]">{error}</p>

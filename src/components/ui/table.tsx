@@ -6,7 +6,10 @@ function cn(...classes: (string | undefined | false | null)[]) {
 
 function Table({ className, ...props }: React.ComponentProps<'table'>) {
   return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
+    <div
+      data-slot="table-container"
+      className="relative w-full overflow-x-auto"
+    >
       <table
         data-slot="table"
         className={cn('w-full caption-bottom text-sm', className)}
@@ -79,13 +82,19 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
   return (
     <td
       data-slot="table-cell"
-      className={cn('px-3 py-3 align-middle [&:has([role=checkbox])]:pr-0', className)}
+      className={cn(
+        'px-3 py-3 align-middle [&:has([role=checkbox])]:pr-0',
+        className,
+      )}
       {...props}
     />
   );
 }
 
-function TableCaption({ className, ...props }: React.ComponentProps<'caption'>) {
+function TableCaption({
+  className,
+  ...props
+}: React.ComponentProps<'caption'>) {
   return (
     <caption
       data-slot="table-caption"

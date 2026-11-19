@@ -16,13 +16,14 @@ import StockLedgerPage from '@/pages/stock-ledger/stock-ledger';
 import StockAdjustmentPage from '@/pages/stock-adjustment';
 import ItemCategoriesPage from '@/pages/item-categories';
 import CashierSessionsPage from '@/pages/cashier-sessions';
+import StorefrontPage from '@/pages/storefront';
 import {
   getAuthenticatedHomePath,
   useAuthStore,
   useMeQuery,
 } from '@/lib/auth/auth-store';
 import { useEffect, type FC } from 'react';
-import { Navigate, Route, Routes } from 'react-router';
+import { Navigate, Route, Routes, useSearchParams } from 'react-router';
 import Home from '../pages/dashboard';
 
 // ── Guards ────────────────────────────────────────────────────────────────────
@@ -64,6 +65,31 @@ function AuthenticatedHome() {
   return <Home />;
 }
 
+function AdminStorefrontRoute() {
+  const { data: currentUser } = useMeQuery();
+
+  if (!currentUser) return null;
+  if (currentUser.store?.role !== 'admin') {
+    return <Navigate to={getAuthenticatedHomePath(currentUser)} replace />;
+  }
+
+  return <StorefrontPage />;
+}
+
+function StorefrontRoute() {
+  const [searchParams] = useSearchParams();
+
+  if (searchParams.get('token')?.trim()) {
+    return <StorefrontPage />;
+  }
+
+  return (
+    <RequireAuth requireStore>
+      <AdminStorefrontRoute />
+    </RequireAuth>
+  );
+}
+
 export const RoutesIndex: FC = () => {
   return (
     <Routes>
@@ -89,6 +115,7 @@ export const RoutesIndex: FC = () => {
           </RequireAuth>
         }
       />
+      <Route path="/storefront" element={<StorefrontRoute />} />
 
       {/* Fully protected — needs auth + store selection */}
       <Route

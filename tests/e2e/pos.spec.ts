@@ -59,6 +59,91 @@ test('aligns Add to cart buttons at the bottom of product cards', async ({
   ).toBeLessThanOrEqual(1);
 });
 
+test('keeps product actions visible on hover and quantity controls working', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 600, height: 900 });
+  await installApiMocks(page, {
+    authenticated: true,
+    posSessionOpen: true,
+    posProducts: true,
+  });
+  await page.goto('/pos');
+
+  const productCard = page
+    .locator('[data-slot="card"]')
+    .filter({ hasText: 'adonan filling' })
+    .first();
+  const addButton = productCard.getByRole('button', { name: 'Add to cart' });
+  const cardShadow = await productCard.evaluate(
+    (card) => getComputedStyle(card).boxShadow,
+  );
+  await page.locator('html').evaluate((element) => {
+    element.classList.remove('dark');
+  });
+  const accentStrong = await addButton.evaluate((button) => {
+    const probe = document.createElement('div');
+    probe.style.backgroundColor = 'var(--accent-strong)';
+    (button.parentElement ?? document.body).append(probe);
+    const backgroundColor = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return backgroundColor;
+  });
+  await expect(addButton).toBeVisible();
+  await expect(addButton).toBeEnabled();
+  await expect(addButton).toHaveCSS('opacity', '1');
+  await expect(productCard).toHaveCSS('opacity', '1');
+  await expect(productCard).toHaveCSS('transition-property', 'scale');
+  await expect(productCard).toHaveCSS('transition-duration', '0.2s');
+  await addButton.hover();
+  await expect(addButton).toHaveCSS('background-color', accentStrong);
+  await expect(productCard).toHaveCSS('box-shadow', cardShadow);
+  await expect(productCard).toHaveCSS('scale', '1.001');
+
+  await addButton.click();
+  await expect(productCard.getByText('1 in order')).toBeVisible();
+
+  const increaseButton = productCard.getByRole('button', {
+    name: 'Increase adonan filling quantity',
+  });
+  const decreaseButton = productCard.getByRole('button', {
+    name: 'Decrease adonan filling quantity',
+  });
+  await expect(increaseButton).toBeEnabled();
+  await expect(increaseButton).toHaveCSS('opacity', '1');
+  await expect(decreaseButton).toBeEnabled();
+  await expect(productCard).toHaveCSS('opacity', '1');
+  await increaseButton.hover();
+  await expect(increaseButton).toHaveCSS('background-color', accentStrong);
+
+  await page.locator('html').evaluate((element) => {
+    element.classList.add('dark');
+  });
+  const darkAccentStrong = await increaseButton.evaluate((button) => {
+    const probe = document.createElement('div');
+    probe.style.backgroundColor = 'var(--accent-strong)';
+    (button.parentElement ?? document.body).append(probe);
+    const backgroundColor = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return backgroundColor;
+  });
+  await increaseButton.hover();
+  await expect(increaseButton).toHaveCSS('background-color', darkAccentStrong);
+  await page.locator('html').evaluate((element) => {
+    element.classList.remove('dark');
+  });
+
+  await increaseButton.click();
+  await expect(productCard.getByText('2 in order')).toBeVisible();
+
+  await decreaseButton.click();
+  await expect(productCard.getByText('1 in order')).toBeVisible();
+  await decreaseButton.click();
+  await expect(
+    productCard.getByRole('button', { name: 'Add to cart' }),
+  ).toBeVisible();
+});
+
 test('animates the current order drawer when tapped open and closed', async ({
   page,
 }) => {

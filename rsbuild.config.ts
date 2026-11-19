@@ -1,4 +1,4 @@
-import { defineConfig, loadEnv } from '@rsbuild/core';
+﻿import { defineConfig, loadEnv } from '@rsbuild/core';
 import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';
 
@@ -14,6 +14,7 @@ export default defineConfig({
   ],
   html: {
     title: 'Oyapi POS',
+    favicon: './public/Asset-3svg.svg',
   },
   source: {
     define: {

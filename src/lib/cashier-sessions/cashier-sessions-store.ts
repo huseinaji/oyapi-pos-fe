@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cashierSessionsApi } from './cashier-sessions-api';
-import type { CashierStockSnapshot } from './cashier-sessions-types';
+import type {
+  CashierStockSnapshot,
+  CloseCashierSessionDto,
+} from './cashier-sessions-types';
 
 export const cashierSessionQueryKeys = {
   all: ['cashier-sessions'] as const,
@@ -47,9 +50,16 @@ export function useCashierSessionsPageQuery(
 export function useOpenCashierSessionMutation(storeId?: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (openingStock: CashierStockSnapshot[]) => {
+    mutationFn: (input: {
+      openingCash: number;
+      openingStock: CashierStockSnapshot[];
+    }) => {
       if (!storeId) throw new Error('Select a store before opening cashier.');
-      return cashierSessionsApi.open(storeId, openingStock);
+      return cashierSessionsApi.open(
+        storeId,
+        input.openingCash,
+        input.openingStock,
+      );
     },
     onSuccess: () =>
       queryClient.invalidateQueries({
@@ -61,9 +71,9 @@ export function useOpenCashierSessionMutation(storeId?: string) {
 export function useCloseCashierSessionMutation(storeId?: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => {
+    mutationFn: (closingData: CloseCashierSessionDto) => {
       if (!storeId) throw new Error('Select a store before closing cashier.');
-      return cashierSessionsApi.close(storeId);
+      return cashierSessionsApi.close(storeId, closingData);
     },
     onSuccess: () =>
       queryClient.invalidateQueries({

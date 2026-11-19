@@ -20,15 +20,28 @@ export type CashierSession = {
   openedAt: string;
   openedBy: CashierOperator;
   participants?: CashierOperator[];
+  openingCash?: number;
   openingStock: CashierStockSnapshot[];
   closedAt?: string;
   closer?: CashierOperator;
+  actualCash?: number;
+  remarks?: string;
   closingStock?: CashierStockSnapshot[];
 };
 
 export type OpenCashierSessionDto = {
-  items: Array<{
+  openingCash: number;
+  items?: Array<{
     itemId: string;
     openingQty: number;
+  }>;
+};
+
+export type CloseCashierSessionDto = {
+  actualCash: number;
+  remarks?: string;
+  items: Array<{
+    itemId: string;
+    actualQty: number;
   }>;
 };

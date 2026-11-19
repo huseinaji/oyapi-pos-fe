@@ -239,7 +239,7 @@ export default function TransactionDetailPage() {
                 type="button"
                 onClick={() => void handleComplete()}
                 disabled={isCompleting}
-                className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-[var(--accent-strong)] px-4 py-3 text-sm font-semibold text-[var(--accent-foreground)] transition hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-[var(--accent-strong)] px-4 py-3 text-sm font-semibold text-[var(--card)] transition hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
               >
                 <CheckCircle2 size={14} />
                 {isCompleting ? 'Completing…' : 'Set complete'}
@@ -247,14 +247,14 @@ export default function TransactionDetailPage() {
             )}
             <Link
               to={`/transactions/print/${transaction.id}`}
-              className="flex w-full items-center justify-center gap-2 rounded-[12px] border border-[var(--border)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-muted)] active:scale-[0.98]"
+              className="flex w-full items-center justify-center gap-2 rounded-[12px] border border-[var(--border)] px-4 py-3 text-sm font-semibold text-[var(--primary)] transition hover:bg-[var(--surface-muted)] active:scale-[0.98]"
             >
               <Printer size={16} />
               Print receipt
             </Link>
             <Link
               to="/transactions"
-              className="flex w-full items-center justify-center gap-2 rounded-[12px] border border-[var(--border)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-muted)] active:scale-[0.98]"
+              className="flex w-full items-center justify-center gap-2 rounded-[12px] border border-[var(--border)] px-4 py-3 text-sm font-semibold text-[var(--primary)] transition hover:bg-[var(--surface-muted)] active:scale-[0.98]"
             >
               <Receipt size={16} />
               All transactions
@@ -352,7 +352,7 @@ function InfoField({
 }) {
   return (
     <Field>
-      <FieldLabel className="h-5 text-sm font-medium leading-5 text-[var(--foreground)]">
+      <FieldLabel className="h-5 text-sm font-medium leading-5 text-[var(--primary)]">
         {label}
       </FieldLabel>
       <div className="flex min-h-11 w-full items-center rounded-[12px] border border-[var(--border)] bg-[var(--canvas-soft)] px-3.5 py-2 text-sm text-[var(--muted)]">

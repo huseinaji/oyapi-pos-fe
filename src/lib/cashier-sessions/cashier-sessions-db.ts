@@ -85,7 +85,9 @@ export async function openCashierSession(input: {
           existing.storeId === input.storeId && existing.status === 'OPEN',
       );
       if (hasOpenSession) {
-        failure = new Error('A cashier session is already open for this store.');
+        failure = new Error(
+          'A cashier session is already open for this store.',
+        );
         transaction.abort();
         return;
       }
@@ -97,7 +99,11 @@ export async function openCashierSession(input: {
     };
     transaction.onabort = () => {
       database.close();
-      reject(failure ?? transaction.error ?? new Error('Unable to open cashier session.'));
+      reject(
+        failure ??
+          transaction.error ??
+          new Error('Unable to open cashier session.'),
+      );
     };
     transaction.onerror = () => {
       database.close();
@@ -124,7 +130,11 @@ export async function closeCashierSession(input: {
 
     request.onsuccess = () => {
       const session = request.result as CashierSession | undefined;
-      if (!session || session.storeId !== input.storeId || session.status !== 'OPEN') {
+      if (
+        !session ||
+        session.storeId !== input.storeId ||
+        session.status !== 'OPEN'
+      ) {
         failure = new Error('This cashier session is not open.');
         transaction.abort();
         return;
@@ -133,7 +143,7 @@ export async function closeCashierSession(input: {
         ...session,
         status: 'CLOSED',
         closedAt: input.closedAt ?? new Date().toISOString(),
-        closedBy: input.closedBy,
+        closer: input.closedBy,
         closingStock: input.closingStock,
       };
       objectStore.put(updatedSession);
@@ -145,11 +155,17 @@ export async function closeCashierSession(input: {
     };
     transaction.onabort = () => {
       database.close();
-      reject(failure ?? transaction.error ?? new Error('Unable to close cashier session.'));
+      reject(
+        failure ??
+          transaction.error ??
+          new Error('Unable to close cashier session.'),
+      );
     };
     transaction.onerror = () => {
       database.close();
-      reject(transaction.error ?? new Error('Unable to close cashier session.'));
+      reject(
+        transaction.error ?? new Error('Unable to close cashier session.'),
+      );
     };
   });
 }
@@ -170,7 +186,11 @@ export async function joinCashierSession(input: {
 
     request.onsuccess = () => {
       const session = request.result as CashierSession | undefined;
-      if (!session || session.storeId !== input.storeId || session.status !== 'OPEN') {
+      if (
+        !session ||
+        session.storeId !== input.storeId ||
+        session.status !== 'OPEN'
+      ) {
         failure = new Error('This cashier session is not open.');
         transaction.abort();
         return;
@@ -190,7 +210,11 @@ export async function joinCashierSession(input: {
     };
     transaction.onabort = () => {
       database.close();
-      reject(failure ?? transaction.error ?? new Error('Unable to join cashier session.'));
+      reject(
+        failure ??
+          transaction.error ??
+          new Error('Unable to join cashier session.'),
+      );
     };
     transaction.onerror = () => {
       database.close();

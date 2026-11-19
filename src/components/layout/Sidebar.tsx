@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
-import { ChevronDown, ShoppingCart } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { navIcons, navItems } from '@/configs/navConfig';
 import type {
   MenuItem,
@@ -129,6 +129,7 @@ function SidebarSubItem({
         render={
           <Link
             to={item.href}
+            aria-label={item.label}
             target={item.target}
             aria-disabled={disabled}
             aria-current={active ? 'page' : undefined}
@@ -187,6 +188,7 @@ function SidebarNavItem({
           render={
             <Link
               to={item.href}
+              aria-label={item.label}
               target={item.target}
               aria-disabled={disabled}
               aria-current={active ? 'page' : undefined}
@@ -208,11 +210,11 @@ function SidebarNavItem({
           isActive={active}
           tooltip={item.label}
           size="lg"
-          className={`gap-3 rounded-2xl px-3 py-3 text-sm [&_svg]:size-[18px] data-[active=true]:bg-[var(--accent)]/15 data-[active=true]:text-[var(--accent)] ${
+          className={`gap-3 rounded-2xl px-3 py-3 text-sm [&_svg]:size-[18px] data-[active=true]:bg-[var(--canvas-soft)] data-[active=true]:text-[var(--muted)] ${
             disabled ? 'cursor-not-allowed opacity-50' : ''
-          } group-data-[collapsible=icon]:justify-center`}
+          } group-data-[collapsible=icon]:h-10! group-data-[collapsible=icon]:w-10! group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center`}
         >
-          <Icon />
+          <Icon size={18} aria-hidden="true" />
           <span className="group-data-[collapsible=icon]:hidden">
             {item.label}
           </span>
@@ -239,9 +241,9 @@ function SidebarNavItem({
         isActive={active}
         tooltip={item.label}
         size="lg"
-        className="gap-3 rounded-2xl px-3 py-3 text-sm [&_svg]:size-[18px] data-[active=true]:bg-[var(--accent)]/15 data-[active=true]:text-[var(--accent)] group-data-[collapsible=icon]:justify-center"
+        className="gap-3 rounded-2xl px-3 py-3 text-sm [&_svg]:size-[18px] data-[active=true]:bg-[var(--canvas-soft)] data-[active=true]:text-[var(--muted)] group-data-[collapsible=icon]:h-10! group-data-[collapsible=icon]:w-10! group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center"
       >
-        <Icon />
+        <Icon size={18} aria-hidden="true" />
         <span className="group-data-[collapsible=icon]:hidden">
           {item.label}
         </span>
@@ -272,7 +274,8 @@ function visibleNavGroups(groups: NavItem[], currentUser: AuthUser | null) {
 
 export default function Sidebar({ currentUser }: SidebarProps) {
   const { pathname } = useLocation();
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { isMobile, setOpenMobile, state } = useSidebar();
+  const iconOnly = !isMobile && state === 'collapsed';
   const { settings } = useSettingsStore();
   const storeQuery = useGetCurrentStoreQuery();
   const cashierSessionsQuery = useCashierSessionsQuery(
@@ -301,9 +304,9 @@ export default function Sidebar({ currentUser }: SidebarProps) {
   return (
     <ShadcnSidebar
       collapsible="icon"
-      className="border-r-[0.5px] border-r-[var(--border)] text-[var(--foreground)] [&_[data-sidebar=sidebar]]:bg-[var(--card)]"
+      className="border-r-[0.5px] border-r-[var(--border)] text-[var(--muted)] [&_[data-sidebar=sidebar]]:bg-[var(--card)]"
     >
-      <SidebarHeader className="flex-row items-center gap-2 p-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
+      <SidebarHeader className="flex-row items-center gap-2 p-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-b group-data-[collapsible=icon]:border-[var(--border)] group-data-[collapsible=icon]:p-2">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-[var(--accent)]/15 group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8">
             {settings.logoUrl ? (
@@ -313,7 +316,11 @@ export default function Sidebar({ currentUser }: SidebarProps) {
                 className="h-full w-full object-contain p-1"
               />
             ) : (
-              <ShoppingCart size={18} className="text-[var(--accent)]" />
+              <img
+                src="/Asset-3svg.svg"
+                alt="Oyapi"
+                className="h-full w-full object-contain"
+              />
             )}
           </div>
           <div className="min-w-0 group-data-[collapsible=icon]:hidden">
@@ -331,7 +338,10 @@ export default function Sidebar({ currentUser }: SidebarProps) {
           const groupCollapsed = collapsedNavGroups.includes(groupLabel);
 
           return (
-            <SidebarGroup key={groupLabel} className="py-1">
+            <SidebarGroup
+              key={groupLabel}
+              className="py-1 group-data-[collapsible=icon]:px-1!"
+            >
               <SidebarGroupLabel
                 render={
                   <button
@@ -351,9 +361,9 @@ export default function Sidebar({ currentUser }: SidebarProps) {
                   }`}
                 />
               </SidebarGroupLabel>
-              {!groupCollapsed && (
+              {(!groupCollapsed || iconOnly) && (
                 <SidebarGroupContent>
-                  <SidebarMenu>
+                  <SidebarMenu className="group-data-[collapsible=icon]:gap-1">
                     {group.items.map((item) => (
                       <SidebarNavItem
                         key={item.href ?? item.label}
@@ -363,6 +373,15 @@ export default function Sidebar({ currentUser }: SidebarProps) {
                     ))}
                   </SidebarMenu>
                 </SidebarGroupContent>
+              )}
+              {index < groups.length - 1 && (
+                <div
+                  aria-hidden="true"
+                  role="separator"
+                  aria-orientation="horizontal"
+                  data-sidebar="rail-divider"
+                  className="mx-auto my-2 hidden h-px w-8 bg-[var(--border)] group-data-[collapsible=icon]:block"
+                />
               )}
             </SidebarGroup>
           );

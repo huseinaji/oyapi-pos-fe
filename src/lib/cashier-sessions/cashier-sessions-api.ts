@@ -4,6 +4,7 @@ import type {
   CashierOperator,
   CashierSession,
   CashierStockSnapshot,
+  CloseCashierSessionDto,
   OpenCashierSessionDto,
 } from './cashier-sessions-types';
 
@@ -11,7 +12,8 @@ type PosSessionItemResponse = {
   itemId: string;
   openingQty: number;
   soldQty: number;
-  closingQty: number;
+  actualQty?: number | null;
+  closingQty?: number | null;
   item: {
     id: string;
     name: string;
@@ -41,6 +43,9 @@ export type PosSessionResponse = {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+  openingCash?: number;
+  actualCash?: number | null;
+  remarks?: string | null;
   closedAt: string | null;
   closedBy: string | null;
   items: PosSessionItemResponse[];
@@ -90,8 +95,8 @@ function mapSession(value: PosSessionResponse): CashierSession {
   const isClosed = value.status.toLowerCase() === 'closed';
   const closingStock = isClosed
     ? items.flatMap((item) =>
-        typeof item.closingQty === 'number'
-          ? [mapSnapshot(item, item.closingQty)]
+        typeof (item.actualQty ?? item.closingQty) === 'number'
+          ? [mapSnapshot(item, item.actualQty ?? item.closingQty ?? 0)]
           : [],
       )
     : undefined;
@@ -102,9 +107,16 @@ function mapSession(value: PosSessionResponse): CashierSession {
     status: isClosed ? 'CLOSED' : 'OPEN',
     openedAt: value.createdAt,
     openedBy: mapOperator(value.createdBy),
+    ...(typeof value.openingCash === 'number'
+      ? { openingCash: value.openingCash }
+      : {}),
     openingStock,
     ...(value.closedAt ? { closedAt: value.closedAt } : {}),
     ...(value.closedBy ? { closer: mapOperator(value.closedBy) } : {}),
+    ...(typeof value.actualCash === 'number'
+      ? { actualCash: value.actualCash }
+      : {}),
+    ...(value.remarks ? { remarks: value.remarks } : {}),
     ...(closingStock ? { closingStock } : {}),
   };
 }
@@ -133,18 +145,29 @@ export const cashierSessionsApi = {
     );
     return response.rows.map(mapSession);
   },
-  open: (storeId: string, openingStock: CashierStockSnapshot[]) => {
+  open: (
+    storeId: string,
+    openingCash: number,
+    openingStock: CashierStockSnapshot[],
+  ) => {
     const body: OpenCashierSessionDto = {
-      items: openingStock.map(({ itemId, quantity }) => ({
-        itemId,
-        openingQty: quantity,
-      })),
+      openingCash,
+      ...(openingStock.length
+        ? {
+            items: openingStock.map(({ itemId, quantity }) => ({
+              itemId,
+              openingQty: quantity,
+            })),
+          }
+        : {}),
     };
 
     return Api.post<void>(sessionsPath(storeId), body).then(
       (response) => response.data,
     );
   },
-  close: (storeId: string) =>
-    Api.delete<void>(sessionsPath(storeId)).then((response) => response.data),
+  close: (storeId: string, closingData: CloseCashierSessionDto) =>
+    Api.delete<void>(sessionsPath(storeId), { data: closingData }).then(
+      (response) => response.data,
+    ),
 };

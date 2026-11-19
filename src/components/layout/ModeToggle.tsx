@@ -17,15 +17,9 @@ const ModeToggle = () => {
       className="relative"
       onClick={handleModeChange}
     >
-      {isDark ? (
-        <SunIcon />
-      ) : (
-        <MoonStarIcon />
-      )}
+      {isDark ? <SunIcon /> : <MoonStarIcon />}
 
-      <span className="sr-only">
-        Toggle theme
-      </span>
+      <span className="sr-only">Toggle theme</span>
     </Button>
   );
 };

@@ -106,7 +106,7 @@ export function RowActions({
             ? 'cursor-not-allowed opacity-40'
             : action.danger
               ? 'text-[var(--status-danger)] hover:bg-[var(--status-danger)]/8'
-              : 'text-[var(--foreground)] hover:bg-[var(--surface-muted)]'
+              : 'text-[var(--primary)] hover:bg-[var(--surface-muted)]'
         }`;
 
         if (action.href && !action.disabled) {
@@ -155,7 +155,7 @@ export function RowActions({
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] text-[var(--muted)] transition hover:border-[var(--accent)]/40 hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] active:scale-95"
+        className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] text-[var(--muted)] transition hover:border-[var(--accent)]/40 hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] active:scale-95"
       >
         <MoreHorizontal size={15} />
       </button>

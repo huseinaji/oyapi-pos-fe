@@ -2,6 +2,10 @@ import { useMemo, useState } from 'react';
 import {
   CalendarRange,
   ChartNoAxesCombined,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  Package,
   Radio,
   RefreshCw,
   ShoppingCart,
@@ -24,6 +28,7 @@ import {
 } from 'recharts';
 
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -32,7 +37,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
-import { MetricCard } from '@/components/ui/metric-card';
+import { KpiCard } from '@/components/ui/metric-card';
 import { PageHeader } from '@/components/ui/page-header';
 import { SectionCard } from '@/components/ui/section-card';
 import { AppSelect } from '@/components/ui/app-select';
@@ -226,7 +231,7 @@ export default function Home() {
             selectedSessionItem.openingQty - selectedSessionItem.soldQty,
             0,
           ),
-          color: 'var(--border-strong)',
+          color: 'var(--surface-accent)',
         },
       ].filter((item) => item.value > 0)
     : [];
@@ -486,7 +491,7 @@ export default function Home() {
                 onClick={() => setPeriod(opt.id)}
                 className={`min-h-10 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 active:scale-[0.98] sm:px-4 ${
                   period === opt.id
-                    ? 'bg-[var(--accent-strong)] text-[var(--accent-foreground)]'
+                    ? 'bg-[var(--accent-strong)] text-[var(--card)]'
                     : 'border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--muted)] hover:border-[var(--accent)]/40'
                 }`}
               >
@@ -519,8 +524,8 @@ export default function Home() {
 
       {/* Metrics */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <MetricCard
-          title="Revenue"
+        <KpiCard
+          label="Revenue"
           value={
             transactionsQuery.isLoading
               ? 'Loading…'
@@ -528,7 +533,8 @@ export default function Home() {
                 ? 'Unavailable'
                 : formatRp(metrics.revenue, true)
           }
-          hint={
+          icon={<DollarSign size={20} aria-hidden="true" />}
+          trendText={
             transactionsQuery.isLoading
               ? 'Loading sales'
               : transactionsQuery.isError
@@ -537,17 +543,18 @@ export default function Home() {
                   ? `+${metrics.revenueDelta}% vs previous period`
                   : `${metrics.revenueDelta}% vs previous period`
           }
-          trend={
+          trendStatus={
             transactionsQuery.isLoading || transactionsQuery.isError
               ? 'neutral'
               : metrics.revenueDelta >= 0
-                ? 'up'
-                : 'down'
+                ? 'success'
+                : 'danger'
           }
+          footerAside="Net sales"
         />
 
-        <MetricCard
-          title="Transactions"
+        <KpiCard
+          label="Transactions"
           value={
             transactionsQuery.isLoading
               ? 'Loading…'
@@ -555,20 +562,31 @@ export default function Home() {
                 ? 'Unavailable'
                 : String(metrics.orderCount)
           }
-          hint={
-            transactionsQuery.isLoading
-              ? 'Loading sales'
-              : transactionsQuery.isError
-                ? 'Sales data unavailable'
-                : metrics.pendingCount > 0
-                  ? `${metrics.pendingCount} pending payment`
-                  : 'Completed sales only'
+          icon={<ShoppingCart size={20} aria-hidden="true" />}
+          iconTone="blue"
+          footer={
+            transactionsQuery.isLoading ? (
+              <span className="text-xs text-[var(--muted)]">Loading sales</span>
+            ) : transactionsQuery.isError ? (
+              <span className="text-xs text-[var(--muted)]">
+                Sales data unavailable
+              </span>
+            ) : (
+              <span className="inline-flex min-w-0 items-center gap-1.5 text-xs leading-5 text-[var(--muted)]">
+                <CheckCircle2 size={14} aria-hidden="true" />
+                Completed sales only
+              </span>
+            )
           }
-          trend="neutral"
+          footerAside={
+            transactionsQuery.isLoading || transactionsQuery.isError
+              ? undefined
+              : `${metrics.pendingCount} pending`
+          }
         />
 
-        <MetricCard
-          title="Avg. order value"
+        <KpiCard
+          label="Avg. order value"
           value={
             transactionsQuery.isLoading
               ? 'Loading…'
@@ -576,40 +594,68 @@ export default function Home() {
                 ? 'Unavailable'
                 : formatRp(metrics.avgOrder, true)
           }
-          hint={
-            transactionsQuery.isLoading
-              ? 'Loading sales'
-              : transactionsQuery.isError
-                ? 'Sales data unavailable'
-                : `Peak hour ${metrics.peakHour}`
+          icon={<TrendingUp size={20} aria-hidden="true" />}
+          iconTone="cyan"
+          footer={
+            transactionsQuery.isLoading ? (
+              <span className="text-xs text-[var(--muted)]">Loading sales</span>
+            ) : transactionsQuery.isError ? (
+              <span className="text-xs text-[var(--muted)]">
+                Sales data unavailable
+              </span>
+            ) : (
+              <span className="inline-flex min-w-0 items-center gap-1.5 text-xs leading-5 text-[var(--muted)]">
+                <Clock size={14} aria-hidden="true" />
+                Peak hour {metrics.peakHour}
+              </span>
+            )
           }
-          trend="neutral"
+          footerAside={
+            transactionsQuery.isLoading || transactionsQuery.isError
+              ? undefined
+              : 'Per receipt'
+          }
         />
 
-        <MetricCard
-          title="Items"
+        <KpiCard
+          label="Inventory Status"
           value={
             productsQuery.isLoading
               ? 'Loading…'
               : productsQuery.isError
                 ? 'Unavailable'
-                : String(products.length)
+                : `${products.length} Items`
           }
-          hint={
-            productsQuery.isLoading
-              ? 'Loading inventory'
-              : productsQuery.isError
-                ? 'Inventory data unavailable'
-                : metrics.lowStock + metrics.outOfStock > 0
-                  ? `${metrics.lowStock} low stock · ${metrics.outOfStock} out of stock`
-                  : 'All stock healthy'
+          icon={<Package size={20} aria-hidden="true" />}
+          footer={
+            productsQuery.isLoading ? (
+              <span className="text-xs text-[var(--muted)]">
+                Loading inventory
+              </span>
+            ) : productsQuery.isError ? (
+              <span className="text-xs text-[var(--muted)]">
+                Inventory data unavailable
+              </span>
+            ) : (
+              <div className="flex min-w-0 flex-wrap gap-1">
+                <Badge variant="destructive">
+                  {metrics.outOfStock} Out of Stock
+                </Badge>
+                <Badge variant="secondary">{metrics.lowStock} Low Stock</Badge>
+              </div>
+            )
           }
-          trend={
+          footerAside={
             productsQuery.isLoading || productsQuery.isError
-              ? 'neutral'
-              : metrics.lowStock + metrics.outOfStock > 0
-                ? 'down'
-                : 'up'
+              ? undefined
+              : 'Stock levels'
+          }
+          variant={
+            !productsQuery.isLoading &&
+            !productsQuery.isError &&
+            metrics.outOfStock > 0
+              ? 'danger'
+              : 'default'
           }
         />
       </div>
@@ -723,7 +769,7 @@ export default function Home() {
                         backgroundColor: 'var(--card)',
                         border: '1px solid var(--border)',
                         borderRadius: 10,
-                        color: 'var(--foreground)',
+                        color: 'var(--primary)',
                         boxShadow: '0 12px 32px rgba(0,0,0,0.12)',
                       }}
                       labelStyle={{ color: 'var(--muted)', marginBottom: 4 }}
@@ -760,7 +806,7 @@ export default function Home() {
                     ? 'Period revenue'
                     : 'Completed orders'}
                 </p>
-                <p className="mt-2 text-2xl font-bold tracking-tight text-[var(--foreground)]">
+                <p className="mt-2 text-2xl font-bold tracking-tight text-[var(--primary)]">
                   {transactionsQuery.isLoading
                     ? 'Loading…'
                     : transactionsQuery.isError
@@ -962,7 +1008,7 @@ export default function Home() {
                         width={96}
                         axisLine={false}
                         tickLine={false}
-                        tick={{ fill: 'var(--foreground)', fontSize: 11 }}
+                        tick={{ fill: 'var(--primary)', fontSize: 11 }}
                       />
                       <Tooltip
                         cursor={{
@@ -973,7 +1019,7 @@ export default function Home() {
                           backgroundColor: 'var(--card)',
                           border: '1px solid var(--border)',
                           borderRadius: 10,
-                          color: 'var(--foreground)',
+                          color: 'var(--primary)',
                           boxShadow: '0 12px 32px rgba(0,0,0,0.12)',
                         }}
                         formatter={(value) => [
@@ -1010,7 +1056,7 @@ export default function Home() {
                           backgroundColor: 'var(--card)',
                           border: '1px solid var(--border)',
                           borderRadius: 10,
-                          color: 'var(--foreground)',
+                          color: 'var(--primary)',
                         }}
                         formatter={(value) => [
                           itemSalesMetric === 'revenue'
@@ -1098,7 +1144,7 @@ export default function Home() {
                 setSessionReportDate(event.target.value);
                 setSessionItemId('');
               }}
-              className="min-h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--foreground)] outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              className="min-h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--primary)] outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
             />
           </div>
         </CardHeader>
@@ -1198,8 +1244,8 @@ export default function Home() {
                       }}
                       className={`min-h-10 rounded-md px-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
                         sessionStockType === type
-                          ? 'bg-[var(--card)] text-[var(--foreground)] shadow-sm'
-                          : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                          ? 'bg-[var(--card)] text-[var(--primary)] shadow-sm'
+                          : 'text-[var(--muted)] hover:text-[var(--primary)]'
                       }`}
                     >
                       {label}
@@ -1290,7 +1336,7 @@ export default function Home() {
                                 backgroundColor: 'var(--card)',
                                 border: '1px solid var(--border)',
                                 borderRadius: 10,
-                                color: 'var(--foreground)',
+                                color: 'var(--primary)',
                               }}
                               formatter={(value, name) => [
                                 `${formatQuantity(Number(value))} ${selectedSessionItem.uom}`,
@@ -1332,7 +1378,7 @@ export default function Home() {
                           Sold
                         </span>
                         <span className="inline-flex items-center gap-2 text-[var(--muted)]">
-                          <span className="size-2.5 rounded-full bg-[var(--border-strong)]" />
+                          <span className="size-2.5 rounded-full bg-[var(--surface-accent)]" />
                           Remaining
                         </span>
                       </div>

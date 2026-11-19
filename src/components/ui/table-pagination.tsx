@@ -147,8 +147,8 @@ export function TablePagination<TData>({
             variant="ghost"
             className={
               page === currentPage
-                ? 'bg-[var(--accent)] text-white hover:bg-[var(--foreground)]/90 hover:text-white'
-                : 'bg-[var(--surface-muted)] text-[var(--foreground)] hover:bg-[var(--border)]'
+                ? 'bg-[var(--accent)] text-white hover:bg-[var(--primary)]/90 hover:text-white'
+                : 'bg-[var(--surface-muted)] text-[var(--primary)] hover:bg-[var(--border)]'
             }
             onClick={() => changePage(page - 1)}
             aria-current={page === currentPage ? 'page' : undefined}
@@ -173,7 +173,7 @@ export function TablePagination<TData>({
         >
           Show
         </label>
-        
+
         <Select
           items={pageSizeOptions.map((size) => ({
             label: String(size),
@@ -225,7 +225,7 @@ export function TablePagination<TData>({
           <PaginationItem>
             <Button
               variant="ghost"
-              className="gap-1 px-2 text-[var(--foreground)] disabled:opacity-50 sm:px-3"
+              className="gap-1 px-2 text-[var(--primary)] disabled:opacity-50 sm:px-3"
               onClick={() => changePage(pageIndex + 1)}
               disabled={!canNextPage}
               aria-label="Go to next page"

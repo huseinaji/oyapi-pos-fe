@@ -48,7 +48,7 @@ import { useItemCategoriesQuery } from '@/lib/product/item-categories-store';
 import { SectionCard } from '@/components/ui/section-card';
 
 const FIELD_LABEL_CLASS =
-  'h-5 text-sm font-medium leading-5 text-[var(--foreground)]';
+  'h-5 text-sm font-medium leading-5 text-[var(--primary)]';
 
 function formatItemType(type: string) {
   return ITEM_TYPE_LABELS[type as ItemType] ?? type;
@@ -513,7 +513,7 @@ function Metric({
 }
 
 function inputClass() {
-  return 'h-11 w-full rounded-[12px] border border-[var(--border)] bg-[var(--card)] px-3.5 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 disabled:cursor-wait disabled:opacity-60';
+  return 'h-11 w-full rounded-[12px] border border-[var(--border)] bg-[var(--card)] px-3.5 text-sm text-[var(--primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/15 disabled:cursor-wait disabled:opacity-60';
 }
 
 function fieldValueClass() {

@@ -131,15 +131,15 @@ Edit only `tailwindCssFile`. Keep hex values when the DESIGN.md gives hex. Don't
 | DESIGN.md role                               | shadcn variable                                             |
 | -------------------------------------------- | ----------------------------------------------------------- |
 | canvas / surface / page floor                | `--background`                                              |
-| ink / headline text                          | `--foreground`, `--card-foreground`, `--popover-foreground` |
+| ink / headline text                          | `--primary`, `--card-foreground`, `--card-foreground` |
 | primary CTA fill / on-primary                | `--primary` / `--primary-foreground`                        |
 | primary hover, pressed or active fill        | new `--primary-active` (or `--primary-pressed`)             |
 | secondary button fill / text                 | `--secondary` / `--secondary-foreground`                    |
 | soft band, alternating section               | `--muted`                                                   |
 | secondary or descriptive text                | `--muted-foreground`                                        |
-| ghost hover wash, active tab, menu highlight | `--accent` / `--accent-foreground`                          |
+| ghost hover wash, active tab, menu highlight | `--accent` / `--card`                          |
 | card / feature card fill                     | `--card`                                                    |
-| floating layer (menus, dialogs)              | `--popover` (usually the canvas)                            |
+| floating layer (menus, dialogs)              | `--card` (usually the canvas)                            |
 | hairline / structural border                 | `--border`, `--input`                                       |
 | focus color                                  | `--ring`                                                    |
 | error / validation                           | `--destructive`                                             |
@@ -215,14 +215,14 @@ npm install @fontsource-variable/inter @fontsource-variable/cormorant-garamond @
 ```
 
 ```css
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/cormorant-garamond";
-@import "@fontsource-variable/jetbrains-mono";
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/cormorant-garamond';
+@import '@fontsource-variable/jetbrains-mono';
 
 @theme inline {
-  --font-sans: "Inter Variable", -apple-system, system-ui, sans-serif;
-  --font-serif: "Cormorant Garamond Variable", Garamond, serif;
-  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --font-sans: 'Inter Variable', -apple-system, system-ui, sans-serif;
+  --font-serif: 'Cormorant Garamond Variable', Garamond, serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
   --font-heading: var(--font-sans);
 }
 ```
@@ -269,12 +269,12 @@ Match the documented focus treatment:
 :is(
   button,
   a[href],
-  [role="button"],
-  [role="tab"],
-  [role="checkbox"],
-  [role="radio"],
-  [role="switch"],
-  [role="slider"]
+  [role='button'],
+  [role='tab'],
+  [role='checkbox'],
+  [role='radio'],
+  [role='switch'],
+  [role='slider']
 ):focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;

@@ -8,6 +8,7 @@ import {
   Settings,
   ShoppingCart,
   SlidersHorizontal,
+  Store,
   Tags,
   Users,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ export const navIcons = {
   Settings,
   ShoppingCart,
   SlidersHorizontal,
+  Store,
   Tags,
   Users,
 };
@@ -120,6 +122,12 @@ export const navItems: NavItem[] = [
         href: '/transactions',
         label: 'Transactions',
         icon: 'ReceiptText',
+      },
+      {
+        href: '/storefront',
+        label: 'Storefront',
+        icon: 'Store',
+        roles: ['admin'],
       },
     ],
   },

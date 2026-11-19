@@ -136,7 +136,10 @@ const PaginatedDataTableDemo = () => {
         emptyContent="No products found."
         containerClassName="overflow-hidden rounded-md border"
       />
-      <TanStackTablePagination table={table} pageSizeOptions={[5, 10, 25, 50]} />
+      <TanStackTablePagination
+        table={table}
+        pageSizeOptions={[5, 10, 25, 50]}
+      />
     </div>
   );
 };

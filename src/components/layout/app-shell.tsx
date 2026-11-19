@@ -51,7 +51,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           '--sidebar-width-icon': '4rem',
         } as CSSProperties
       }
-      className="min-h-svh bg-[var(--background)] text-[var(--foreground)]"
+      className="min-h-svh bg-[var(--background)] text-[var(--primary)]"
     >
       <Sidebar currentUser={currentUser} />
       <SidebarInset className="min-h-svh min-w-0">

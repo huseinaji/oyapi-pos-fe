@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState, type TransitionEvent } from 'react';
 import {
   AlertTriangle,
   CalendarClock,
+  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   FileText,
-  Info,
   LogIn,
   LogOut,
   Package,
@@ -34,17 +34,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useIsMobile } from '@/hooks/use-mobile';
-import type { CashierSession } from '@/lib/cashier-sessions/cashier-sessions-types';
+import type {
+  CashierSession,
+  CloseCashierSessionDto,
+} from '@/lib/cashier-sessions/cashier-sessions-types';
 import { useTransactionsQuery } from '@/lib/transaction/transaction-store';
 import { formatRp } from '@/lib/transaction-utils';
-
-export type SessionClosingMockData = {
-  actualStockByItem: Record<string, number>;
-  actualCash: number;
-  recordedAt: string;
-};
-
-type SessionClosingInput = Omit<SessionClosingMockData, 'recordedAt'>;
 
 type CashierSessionDetailDrawerProps = {
   session: CashierSession | null;
@@ -55,8 +50,7 @@ type CashierSessionDetailDrawerProps = {
   onClosingDialogOpenChange: (open: boolean) => void;
   canClose: boolean;
   isClosing: boolean;
-  mockClosingData?: SessionClosingMockData;
-  onCloseSession: (values: SessionClosingInput) => void;
+  onCloseSession: (values: CloseCashierSessionDto) => void;
 };
 
 type SessionStockRow = {
@@ -102,6 +96,23 @@ function formatDate(value?: string) {
       }).format(date);
 }
 
+function formatDuration(startAt: string, endAt?: string) {
+  const start = new Date(startAt).getTime();
+  const end = endAt ? new Date(endAt).getTime() : Date.now();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return '—';
+  }
+
+  const totalMinutes = Math.floor((end - start) / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days) return `${days}d ${hours}h`;
+  if (hours) return `${hours}h ${minutes} min`;
+  return `${minutes} min`;
+}
+
 function buildStockRows(session: CashierSession): SessionStockRow[] {
   const closingStockByItem = new Map(
     (session.closingStock ?? []).map((item) => [item.itemId, item.quantity]),
@@ -141,13 +152,6 @@ function getStockVariance(expectedQty?: number, actualQty?: number, uom = '') {
   };
 }
 
-function getActualStock(
-  row: SessionStockRow,
-  mockClosingData?: SessionClosingMockData,
-) {
-  return mockClosingData?.actualStockByItem[row.itemId] ?? row.closingQty;
-}
-
 export function CashierSessionDetailDrawer({
   session,
   open,
@@ -157,7 +161,6 @@ export function CashierSessionDetailDrawer({
   onClosingDialogOpenChange,
   canClose,
   isClosing,
-  mockClosingData,
   onCloseSession,
 }: CashierSessionDetailDrawerProps) {
   const isMobile = useIsMobile();
@@ -165,6 +168,7 @@ export function CashierSessionDetailDrawer({
     Record<string, string>
   >({});
   const [actualCash, setActualCash] = useState('');
+  const [remarks, setRemarks] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [itemSearch, setItemSearch] = useState('');
   const [itemPage, setItemPage] = useState(0);
@@ -203,24 +207,44 @@ export function CashierSessionDetailDrawer({
         : count,
     0,
   );
-  const salesSummary = useMemo(
+  const isCashCountValid =
+    actualCash.trim() !== '' &&
+    Number.isFinite(Number(actualCash)) &&
+    Number(actualCash) >= 0;
+  const canReviewCounts =
+    countedItems === stockRows.length && isCashCountValid && !isClosing;
+  const completedTransactions = useMemo(
     () =>
-      (transactionsQuery.data ?? [])
-        .filter((transaction) => transaction.status === 'complete')
-        .reduce(
-          (summary, transaction) => {
-            summary.total += transaction.total;
-            summary[transaction.paymentMethod] += transaction.total;
-            return summary;
-          },
-          { total: 0, cash: 0, qris: 0 },
-        ),
+      (transactionsQuery.data ?? []).filter(
+        (transaction) => transaction.status === 'complete',
+      ),
     [transactionsQuery.data],
   );
+  const salesSummary = useMemo(
+    () =>
+      completedTransactions.reduce(
+        (summary, transaction) => {
+          summary.total += transaction.total;
+          summary[transaction.paymentMethod] += transaction.total;
+          return summary;
+        },
+        { total: 0, cash: 0, qris: 0 },
+      ),
+    [completedTransactions],
+  );
+  const completedTransactionCount = completedTransactions.length;
+  const expectedCash = (session?.openingCash ?? 0) + salesSummary.cash;
+  const expectedCashAvailable =
+    !transactionsQuery.isLoading && !transactionsQuery.isError;
+  const cashDifference =
+    session?.actualCash === undefined || !expectedCashAvailable
+      ? undefined
+      : Number((session.actualCash - expectedCash).toFixed(2));
 
   useEffect(() => {
     setActualStockByItem({});
     setActualCash('');
+    setRemarks('');
     setValidationError(null);
     setClosingDialogStep('closed');
     setItemSearch('');
@@ -269,13 +293,12 @@ export function CashierSessionDetailDrawer({
     if (!session) return;
 
     onCloseSession({
-      actualStockByItem: Object.fromEntries(
-        stockRows.map((row) => [
-          row.itemId,
-          Number(actualStockByItem[row.itemId]),
-        ]),
-      ),
       actualCash: Number(actualCash),
+      ...(remarks.trim() ? { remarks: remarks.trim() } : {}),
+      items: stockRows.map((row) => ({
+        itemId: row.itemId,
+        actualQty: Number(actualStockByItem[row.itemId]),
+      })),
     });
   };
 
@@ -294,8 +317,15 @@ export function CashierSessionDetailDrawer({
 
   const isOpenSession = session?.status === 'OPEN';
   const showRecordedStock = Boolean(
-    mockClosingData || session?.closingStock?.length,
+    session?.status === 'CLOSED' || session?.closingStock,
   );
+  const cashShare =
+    salesSummary.total > 0
+      ? Math.min(
+          100,
+          Math.max(0, (salesSummary.cash / salesSummary.total) * 100),
+        )
+      : 0;
 
   return (
     <>
@@ -306,7 +336,7 @@ export function CashierSessionDetailDrawer({
         swipeDirection={isMobile ? 'down' : 'right'}
       >
         <DrawerContent
-          className="w-full md:w-[min(42rem,88vw)]"
+          className="w-full md:w-[min(26rem,92vw)]"
           onTransitionEnd={handleDrawerTransitionEnd}
         >
           {session && (
@@ -317,14 +347,14 @@ export function CashierSessionDetailDrawer({
                     <p className="text-xs text-left font-medium uppercase tracking-[0.16em] text-[var(--muted)]">
                       Cashier session
                     </p>
-                    <DrawerTitle className="mt-1 truncate text-left text-lg font-semibold text-[var(--foreground)]">
+                    <DrawerTitle className="mt-1 truncate text-left text-lg font-semibold text-[var(--primary)]">
                       Session {session.id.slice(0, 8)}
                     </DrawerTitle>
                   </div>
                   <button
                     type="button"
                     onClick={() => onOpenChange(false)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                     aria-label="Close cashier session details"
                   >
                     <X size={16} />
@@ -365,6 +395,20 @@ export function CashierSessionDetailDrawer({
                     value={session.openedBy.username}
                   />
                   <SessionInfo
+                    icon={CalendarClock}
+                    label="Open for"
+                    value={formatDuration(session.openedAt, session.closedAt)}
+                  />
+                  <SessionInfo
+                    icon={Package}
+                    label="Starting cash"
+                    value={
+                      session.openingCash === undefined
+                        ? '—'
+                        : formatRp(session.openingCash)
+                    }
+                  />
+                  <SessionInfo
                     icon={LogOut}
                     label="Closed"
                     value={formatDate(session.closedAt)}
@@ -389,8 +433,8 @@ export function CashierSessionDetailDrawer({
                 ) : (
                   <section aria-label="Session revenue summary">
                     <div className="overflow-hidden rounded-xl border border-[var(--border)]">
-                      <div className="bg-[var(--band-bg)] px-4 py-4 text-[var(--band-text)]">
-                        <p className="text-xs font-medium text-[var(--band-text-muted)]">
+                      <div className="bg-[var(--band-bg)] px-4 py-4 text-[var(--card)]">
+                        <p className="text-xs font-medium text-[var(--card-muted)]">
                           Total sales
                         </p>
                         <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">
@@ -398,17 +442,44 @@ export function CashierSessionDetailDrawer({
                             ? 'Loading...'
                             : formatRp(salesSummary.total)}
                         </p>
+                        <div
+                          className="mt-3 flex h-2 overflow-hidden rounded-full bg-white/25"
+                          role="img"
+                          aria-label={`${cashShare.toFixed(0)} percent of sales were paid in cash`}
+                        >
+                          <span
+                            className="h-full bg-[var(--card-muted)] transition-[width]"
+                            style={{ width: `${cashShare}%` }}
+                          />
+                          <span
+                            className="h-full flex-1 bg-[var(--status-success)]"
+                            aria-hidden="true"
+                          />
+                        </div>
                       </div>
                       <dl className="grid grid-cols-2 divide-x divide-[var(--border)] bg-[var(--card)]">
                         {[
-                          { label: 'Cash sales', value: salesSummary.cash },
-                          { label: 'QRIS sales', value: salesSummary.qris },
+                          {
+                            label: 'Cash sales',
+                            value: salesSummary.cash,
+                            share: cashShare,
+                          },
+                          {
+                            label: 'QRIS sales',
+                            value: salesSummary.qris,
+                            share: 100 - cashShare,
+                          },
                         ].map((item) => (
                           <div key={item.label} className="px-4 py-3">
                             <dt className="text-xs text-[var(--muted)]">
-                              {item.label}
+                              {item.label}{' '}
+                              <span className="tabular-nums">
+                                {salesSummary.total > 0
+                                  ? `${item.share.toFixed(0)}%`
+                                  : ''}
+                              </span>
                             </dt>
-                            <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--foreground)]">
+                            <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--primary)]">
                               {transactionsQuery.isLoading
                                 ? 'Loading...'
                                 : formatRp(item.value)}
@@ -416,29 +487,60 @@ export function CashierSessionDetailDrawer({
                           </div>
                         ))}
                       </dl>
-                      {mockClosingData && (
-                        <dl className="flex items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--card)] px-4 py-3">
-                          <div>
-                            <dt className="text-xs text-[var(--muted)]">
-                              Physical cash counted
-                            </dt>
-                            <dd className="mt-1 text-sm font-semibold tabular-nums text-[var(--foreground)]">
-                              {formatRp(mockClosingData.actualCash)}
-                            </dd>
-                          </div>
-                          <span className="rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-xs font-medium text-[var(--muted)]">
-                            Mock value
-                          </span>
-                        </dl>
-                      )}
                     </div>
                   </section>
                 )}
 
+                <section
+                  className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3"
+                  aria-label="Cash reconciliation"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[var(--primary)]">
+                        Expected cash in drawer
+                      </p>
+                      <p className="mt-0.5 text-xs text-[var(--muted)]">
+                        Starting cash + cash sales
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-base font-semibold tabular-nums text-[var(--accent)]">
+                      {transactionsQuery.isLoading
+                        ? 'Loading...'
+                        : transactionsQuery.isError
+                          ? '—'
+                          : formatRp(expectedCash)}
+                    </p>
+                  </div>
+                  {session.actualCash !== undefined && (
+                    <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-3">
+                      <div>
+                        <p className="text-xs text-[var(--muted)]">
+                          Actual cash counted
+                        </p>
+                        <p className="mt-0.5 text-sm font-semibold tabular-nums text-[var(--primary)]">
+                          {formatRp(session.actualCash)}
+                        </p>
+                      </div>
+                      <p
+                        className={`text-xs font-semibold tabular-nums ${
+                          cashDifference === 0
+                            ? 'text-[var(--status-success)]'
+                            : 'text-[var(--status-pending)]'
+                        }`}
+                      >
+                        {cashDifference === undefined
+                          ? '—'
+                          : `${cashDifference > 0 ? '+' : ''}${formatRp(cashDifference)}`}
+                      </p>
+                    </div>
+                  )}
+                </section>
+
                 <section className="space-y-3">
                   <div className="flex items-end justify-between gap-3">
                     <div>
-                      <h3 className="text-base font-semibold text-[var(--foreground)]">
+                      <h3 className="text-base font-semibold text-[var(--primary)]">
                         Session items
                       </h3>
                       <p className="mt-1 text-xs text-[var(--muted)]">
@@ -542,10 +644,7 @@ export function CashierSessionDetailDrawer({
                                   <TableCell className="text-right">
                                     <StockValue
                                       row={row}
-                                      value={getActualStock(
-                                        row,
-                                        mockClosingData,
-                                      )}
+                                      value={row.closingQty}
                                     />
                                   </TableCell>
                                 )}
@@ -553,10 +652,7 @@ export function CashierSessionDetailDrawer({
                                   <TableCell className="text-right">
                                     <StockVariance
                                       expectedQty={row.expectedFinalQty}
-                                      actualQty={getActualStock(
-                                        row,
-                                        mockClosingData,
-                                      )}
+                                      actualQty={row.closingQty}
                                       uom={row.uom}
                                     />
                                   </TableCell>
@@ -586,16 +682,20 @@ export function CashierSessionDetailDrawer({
                   )}
                 </section>
 
-                {session.status === 'CLOSED' && !mockClosingData && (
-                  <p className="text-xs text-[var(--muted)]">
-                    Real counts are mock-only and were not recorded for this
-                    session in the current page session.
-                  </p>
+                {session.remarks?.trim() && (
+                  <section className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)]/50 p-4">
+                    <h3 className="text-sm font-semibold text-[var(--primary)]">
+                      Closing remarks
+                    </h3>
+                    <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-[var(--muted)]">
+                      {session.remarks.trim()}
+                    </p>
+                  </section>
                 )}
               </div>
 
               <DrawerFooter className="flex-row justify-end border-t border-[var(--border)]/70 bg-[var(--card)] pt-4">
-                {isOpenSession && (
+                {isOpenSession && canClose && (
                   <AppButton
                     onClick={() => {
                       setValidationError(null);
@@ -619,66 +719,94 @@ export function CashierSessionDetailDrawer({
           onClose={closeClosingDialog}
           title={
             closingDialogStep === 'confirm'
-              ? 'Review and confirm close'
-              : 'Count closing stock and cash'
+              ? 'Review before closing'
+              : 'Close cashier'
           }
-          description={
-            closingDialogStep === 'confirm'
-              ? 'Check the physical counts before closing this POS session.'
-              : 'Enter actual stock for every item and the total cash counted.'
-          }
+          description="Count what is really in the drawer and on the shelf."
           size="lg"
-          headerClassName={
-            closingDialogStep === 'count' ? 'border-b-0' : undefined
-          }
-          closeButtonClassName={
-            closingDialogStep === 'count'
-              ? 'rounded-xl bg-[var(--surface-muted)] p-2.5'
-              : undefined
-          }
+          headerClassName="border-b-0 pb-0"
+          closeButtonClassName={'rounded-xl p-2.5'}
+          panelClassName="rounded-[24px] shadow-[0_20px_60px_rgba(31,42,36,0.2)]"
           footer={
             closingDialogStep === 'count' ? (
-              <div className="flex justify-end gap-2 [&_button]:h-11 [&_button]:rounded-[10px] [&_button]:px-5">
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between [&_button]:h-11 [&_button]:px-5">
+                <p className="text-xs text-[var(--muted)]">
+                  Count every item and the cash to continue.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <AppButton
+                    variant="secondary"
+                    onClick={closeClosingDialog}
+                    disabled={isClosing}
+                  >
+                    Cancel
+                  </AppButton>
+                  <AppButton
+                    type="button"
+                    onClick={reviewClosingCounts}
+                    disabled={!canReviewCounts}
+                  >
+                    Review counts
+                  </AppButton>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap justify-end gap-2 [&_button]:h-11 [&_button]:px-5">
                 <AppButton
                   variant="secondary"
-                  onClick={closeClosingDialog}
+                  onClick={() => setClosingDialogStep('count')}
                   disabled={isClosing}
                 >
-                  Cancel
+                  Back to count
                 </AppButton>
-                <AppButton
-                  type="button"
-                  onClick={reviewClosingCounts}
-                  disabled={isClosing}
-                >
-                  Review counts
+                <AppButton onClick={confirmClosing} disabled={isClosing}>
+                  <LogOut size={15} />
+                  <span className="ml-2">
+                    {isClosing ? 'Closing...' : 'Close cashier'}
+                  </span>
                 </AppButton>
               </div>
-            ) : undefined
+            )
           }
         >
           {closingDialogStep === 'count' ? (
             <form
-              className="space-y-5"
+              className="space-y-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 reviewClosingCounts();
               }}
             >
+              <ClosingStepIndicator step="count" />
               <section
-                className="space-y-2.5"
+                className="space-y-2"
                 aria-labelledby="closing-stock-title"
               >
                 <div className="flex items-center justify-between gap-3">
                   <h3
                     id="closing-stock-title"
-                    className="text-[11px] font-semibold tracking-[0.08em] text-[var(--muted)]"
+                    className="text-sm font-semibold text-[var(--accent)]"
                   >
-                    STOCK
+                    Stock
                   </h3>
                   <p className="text-xs tabular-nums text-[var(--muted)]">
                     {countedItems} of {stockRows.length} items counted
                   </p>
+                </div>
+                <div
+                  className="h-1.5 overflow-hidden rounded-full bg-[var(--surface-muted)]"
+                  role="progressbar"
+                  aria-label="Stock items counted"
+                  aria-valuemin={0}
+                  aria-valuemax={Math.max(1, stockRows.length)}
+                  aria-valuenow={stockRows.length === 0 ? 1 : countedItems}
+                >
+                  <div
+                    className="h-full rounded-full bg-[var(--status-success)] transition-[width]"
+                    style={{
+                      width: `${stockRows.length === 0 ? 100 : (countedItems / stockRows.length) * 100}%`,
+                    }}
+                  />
                 </div>
                 {stockRows.length > SESSION_ITEMS_PAGE_SIZE && (
                   <div className="relative w-full">
@@ -704,24 +832,51 @@ export function CashierSessionDetailDrawer({
                     visibleClosingStockRows.map((row) => (
                       <li
                         key={row.itemId}
-                        className="flex flex-col justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)]/40 px-3 py-3 sm:flex-row sm:items-center sm:px-4"
+                        className={`flex flex-col justify-between gap-3 rounded-2xl border px-3 py-3 transition-colors sm:flex-row sm:items-center sm:px-4 ${
+                          row.expectedFinalQty !== undefined &&
+                          actualStockByItem[row.itemId]?.trim() &&
+                          Number.isFinite(
+                            Number(actualStockByItem[row.itemId]),
+                          ) &&
+                          Number(actualStockByItem[row.itemId]) ===
+                            row.expectedFinalQty
+                            ? 'border-[var(--status-success)]/40 bg-[var(--status-success)]/[0.04]'
+                            : 'border-[var(--border)] bg-[var(--card)]'
+                        }`}
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+                          <p className="truncate text-sm font-semibold text-[var(--primary)]">
                             {row.name}
                           </p>
-                          <p className="mt-1 inline-flex rounded-full bg-[var(--surface-muted)] px-2.5 py-1 text-[11px] font-medium text-[var(--muted)]">
+                          <p className="mt-0.5 text-xs text-[var(--muted)]">
                             Expected{' '}
                             {row.expectedFinalQty === undefined
                               ? '—'
                               : formatQuantity(row.expectedFinalQty, row.uom)}
                           </p>
                         </div>
-                        <label className="flex shrink-0 items-center justify-between gap-3 sm:justify-start">
-                          <span className="text-xs font-medium text-[var(--muted)]">
-                            Real stock
-                          </span>
-                          <span className="flex h-11 w-32 items-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] transition focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20">
+                        <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-start">
+                          {actualStockByItem[row.itemId]?.trim() &&
+                            Number.isFinite(
+                              Number(actualStockByItem[row.itemId]),
+                            ) &&
+                            Number(actualStockByItem[row.itemId]) >= 0 &&
+                            row.expectedFinalQty !== undefined && (
+                              <span
+                                className={`hidden text-xs font-semibold sm:inline ${
+                                  row.expectedFinalQty ===
+                                  Number(actualStockByItem[row.itemId])
+                                    ? 'text-[var(--status-success)]'
+                                    : 'text-[var(--status-pending)]'
+                                }`}
+                              >
+                                {row.expectedFinalQty ===
+                                Number(actualStockByItem[row.itemId])
+                                  ? 'Matches'
+                                  : 'Different'}
+                              </span>
+                            )}
+                          <label className="flex h-11 w-36 items-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] transition focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20">
                             <input
                               type="number"
                               min="0"
@@ -735,20 +890,20 @@ export function CashierSessionDetailDrawer({
                                 }));
                                 setValidationError(null);
                               }}
-                              className="h-full min-w-0 flex-1 bg-transparent px-2 text-right text-sm font-semibold tabular-nums text-[var(--foreground)] outline-none"
-                              aria-label={`Real stock count for ${row.name}`}
+                              className="h-full min-w-0 flex-1 bg-transparent px-3 text-right text-sm font-semibold tabular-nums text-[var(--primary)] outline-none"
+                              aria-label={`Counted stock for ${row.name}`}
                               aria-invalid={Boolean(
                                 validationError?.startsWith(
                                   'Enter a valid real stock count',
                                 ),
                               )}
-                              placeholder="0"
+                              placeholder="Enter count"
                             />
                             <span className="pr-3 text-xs text-[var(--muted)]">
                               {row.uom}
                             </span>
-                          </span>
-                        </label>
+                          </label>
+                        </div>
                       </li>
                     ))
                   ) : (
@@ -775,49 +930,37 @@ export function CashierSessionDetailDrawer({
                 className="space-y-2"
                 aria-labelledby="closing-cash-title"
               >
-                <h3
-                  id="closing-cash-title"
-                  className="text-[11px] font-semibold tracking-[0.08em] text-[var(--muted)]"
-                >
-                  CASH
-                </h3>
-                <label className="block text-sm font-semibold text-[var(--foreground)]">
-                  Real cash counted
-                  <span className="mt-1.5 flex h-12 items-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] transition focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20">
-                    <span className="pl-3 text-sm text-[var(--muted)]">Rp</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      inputMode="numeric"
-                      value={actualCash}
-                      onChange={(event) => {
-                        setActualCash(event.target.value);
-                        setValidationError(null);
-                      }}
-                      className="h-full min-w-0 flex-1 bg-transparent px-3 text-right text-base font-semibold tabular-nums text-[var(--foreground)] outline-none"
-                      aria-label="Real cash counted for the session"
-                      aria-invalid={
-                        validationError ===
-                        'Enter the actual cash counted before closing.'
-                      }
-                      placeholder="0"
-                    />
+                <div className="flex items-center justify-between gap-3">
+                  <h3
+                    id="closing-cash-title"
+                    className="text-sm font-semibold text-[var(--primary)]"
+                  >
+                    Cash in drawer
+                  </h3>
+                  <span className="rounded-full bg-[var(--status-pending)]/20 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-[var(--primary)]">
+                    Expected{' '}
+                    {expectedCashAvailable ? formatRp(expectedCash) : '—'}
                   </span>
+                </div>
+                <label className="flex h-12 items-center overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] transition focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20">
+                  <span className="pl-3 text-sm text-[var(--muted)]">Rp</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    value={actualCash}
+                    onChange={(event) => {
+                      setActualCash(event.target.value);
+                      setValidationError(null);
+                    }}
+                    className="h-full min-w-0 flex-1 bg-transparent px-3 text-right text-sm text-[var(--primary)] outline-none"
+                    aria-label="Counted cash in drawer"
+                    aria-invalid={!isCashCountValid && Boolean(actualCash)}
+                    placeholder="Enter counted cash"
+                  />
                 </label>
               </section>
-
-              <div className="flex items-start gap-2.5 rounded-xl border border-[var(--status-pending)]/25 bg-[var(--status-pending)]/10 px-3 py-2.5">
-                <Info
-                  size={17}
-                  className="mt-0.5 shrink-0 text-[var(--status-pending)]"
-                  aria-hidden="true"
-                />
-                <p className="text-xs leading-5 text-[var(--foreground)]">
-                  These closing counts are mock data for this page session and
-                  are not sent to the server.
-                </p>
-              </div>
 
               {validationError && (
                 <p className="text-sm text-[var(--status-danger)]" role="alert">
@@ -826,54 +969,134 @@ export function CashierSessionDetailDrawer({
               )}
             </form>
           ) : (
-            <div className="space-y-5">
-              <div className="flex items-start gap-3 rounded-xl border border-[var(--status-pending)]/30 bg-[var(--status-pending)]/10 p-4">
+            <div className="space-y-4">
+              <ClosingStepIndicator step="review" />
+              <p className="text-sm text-[var(--muted)]">
+                Session sales{' '}
+                {transactionsQuery.isLoading || transactionsQuery.isError
+                  ? '—'
+                  : formatRp(salesSummary.total)}{' '}
+                ·{' '}
+                {transactionsQuery.isLoading || transactionsQuery.isError
+                  ? '—'
+                  : `${completedTransactionCount} ${completedTransactionCount === 1 ? 'transaction' : 'transactions'}`}
+              </p>
+
+              <div className="overflow-x-auto rounded-2xl border border-[var(--border)]">
+                <table className="w-full min-w-[520px] text-sm">
+                  <thead className="bg-[var(--surface-muted)] text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+                    <tr>
+                      <th scope="col" className="px-3 py-3 text-left">
+                        Count
+                      </th>
+                      <th scope="col" className="px-3 py-3 text-right">
+                        Expected
+                      </th>
+                      <th scope="col" className="px-3 py-3 text-right">
+                        Counted
+                      </th>
+                      <th scope="col" className="px-3 py-3 text-right">
+                        Difference
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {stockRows.map((row) => {
+                      const counted = Number(actualStockByItem[row.itemId]);
+                      const difference =
+                        row.expectedFinalQty === undefined
+                          ? undefined
+                          : Number((counted - row.expectedFinalQty).toFixed(2));
+
+                      return (
+                        <tr key={row.itemId}>
+                          <th
+                            scope="row"
+                            className="px-3 py-3 text-left font-semibold text-[var(--primary)]"
+                          >
+                            {row.name}
+                          </th>
+                          <td className="px-3 py-3 text-right tabular-nums text-[var(--muted)]">
+                            {row.expectedFinalQty === undefined
+                              ? '—'
+                              : formatQuantity(row.expectedFinalQty, row.uom)}
+                          </td>
+                          <td className="px-3 py-3 text-right font-semibold tabular-nums text-[var(--primary)]">
+                            {formatQuantity(counted, row.uom)}
+                          </td>
+                          <td
+                            className={`px-3 py-3 text-right font-semibold tabular-nums ${
+                              difference === undefined
+                                ? 'text-[var(--muted)]'
+                                : difference === 0
+                                  ? 'text-[var(--status-success)]'
+                                  : 'text-[var(--status-danger)]'
+                            }`}
+                          >
+                            {difference === undefined
+                              ? '—'
+                              : difference === 0
+                                ? 'Matches'
+                                : `${difference > 0 ? '+' : '−'} ${formatQuantity(Math.abs(difference), row.uom)}`}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr>
+                      <th
+                        scope="row"
+                        className="px-3 py-3 text-left font-semibold text-[var(--primary)]"
+                      >
+                        Cash in drawer
+                      </th>
+                      <td className="px-3 py-3 text-right tabular-nums text-[var(--muted)]">
+                        {expectedCashAvailable ? formatRp(expectedCash) : '—'}
+                      </td>
+                      <td className="px-3 py-3 text-right font-semibold tabular-nums text-[var(--primary)]">
+                        {formatRp(Number(actualCash))}
+                      </td>
+                      <td
+                        className={`px-3 py-3 text-right font-semibold tabular-nums ${
+                          !expectedCashAvailable
+                            ? 'text-[var(--muted)]'
+                            : Number(actualCash) === expectedCash
+                              ? 'text-[var(--status-success)]'
+                              : 'text-[var(--status-danger)]'
+                        }`}
+                      >
+                        {!expectedCashAvailable
+                          ? '—'
+                          : Number(actualCash) === expectedCash
+                            ? 'Matches'
+                            : `${Number(actualCash) > expectedCash ? '+' : '−'} ${formatRp(Math.abs(Number(actualCash) - expectedCash))}`}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <label className="block text-xs font-semibold text-[var(--primary)]">
+                Note for the difference (optional)
+                <textarea
+                  value={remarks}
+                  onChange={(event) => setRemarks(event.target.value)}
+                  rows={2}
+                  placeholder="Explain any cash or stock difference"
+                  className="mt-1.5 min-h-16 w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--card)] px-3 py-2.5 text-sm font-normal text-[var(--primary)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+                  aria-label="Note for the difference"
+                />
+              </label>
+
+              <div className="flex items-start gap-2.5 rounded-xl bg-[var(--status-danger)]/10 px-3 py-2.5 text-[var(--status-danger)]">
                 <AlertTriangle
-                  size={18}
-                  className="mt-0.5 shrink-0 text-[var(--status-pending)]"
+                  size={16}
+                  className="mt-0.5 shrink-0"
                   aria-hidden="true"
                 />
-                <div>
-                  <p className="text-sm font-semibold text-[var(--foreground)]">
-                    Close this POS session?
-                  </p>
-                  <p className="mt-1 text-sm leading-5 text-[var(--muted)]">
-                    Confirm the stock and cash counts below before continuing.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold text-[var(--foreground)]">
-                  Physical stock
-                </h3>
-                <ul className="max-h-52 divide-y divide-[var(--border)] overflow-y-auto rounded-xl border border-[var(--border)]">
-                  {stockRows.map((row) => (
-                    <li
-                      key={row.itemId}
-                      className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
-                    >
-                      <span className="min-w-0 truncate text-[var(--muted)]">
-                        {row.name}
-                      </span>
-                      <span className="shrink-0 font-semibold tabular-nums text-[var(--foreground)]">
-                        {formatQuantity(
-                          Number(actualStockByItem[row.itemId]),
-                          row.uom,
-                        )}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface-muted)] px-4 py-3">
-                <span className="text-sm text-[var(--muted)]">
-                  Real cash counted
-                </span>
-                <span className="text-base font-semibold tabular-nums text-[var(--foreground)]">
-                  {formatRp(Number(actualCash))}
-                </span>
+                <p className="text-xs leading-5">
+                  Closing ends this session. You cannot change the counts
+                  afterward.
+                </p>
               </div>
 
               {validationError && (
@@ -881,22 +1104,6 @@ export function CashierSessionDetailDrawer({
                   {validationError}
                 </p>
               )}
-
-              <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--border)] pt-4">
-                <AppButton
-                  variant="secondary"
-                  onClick={() => setClosingDialogStep('count')}
-                  disabled={isClosing}
-                >
-                  Edit counts
-                </AppButton>
-                <AppButton onClick={confirmClosing} disabled={isClosing}>
-                  <LogOut size={15} />
-                  <span className="ml-2">
-                    {isClosing ? 'Closing...' : 'Confirm close session'}
-                  </span>
-                </AppButton>
-              </div>
             </div>
           )}
         </AppDialog>
@@ -924,11 +1131,58 @@ function SessionInfo({
       />
       <div className="min-w-0">
         <dt className="text-xs text-[var(--muted)]">{label}</dt>
-        <dd className="mt-0.5 truncate text-sm font-medium text-[var(--foreground)]">
+        <dd className="mt-0.5 truncate text-sm font-medium text-[var(--primary)]">
           {value}
         </dd>
       </div>
     </div>
+  );
+}
+
+function ClosingStepIndicator({ step }: { step: 'count' | 'review' }) {
+  const isReview = step === 'review';
+
+  return (
+    <ol
+      className="flex items-center gap-2 text-xs font-semibold text-[var(--muted)]"
+      aria-label={`Close cashier: ${isReview ? 'review' : 'count'} step`}
+    >
+      <li
+        className={`inline-flex items-center gap-1.5 ${
+          isReview ? 'text-[var(--status-success)]' : 'text-[var(--primary)]'
+        }`}
+        aria-current={isReview ? undefined : 'step'}
+      >
+        <span
+          className={`inline-flex size-5 items-center justify-center rounded-full ${
+            isReview
+              ? 'bg-[var(--status-success)] text-white'
+              : 'bg-[var(--accent)] text-white'
+          }`}
+        >
+          {isReview ? <Check size={12} aria-hidden="true" /> : '1'}
+        </span>
+        Count
+      </li>
+      <span className="h-px w-6 bg-[var(--border-strong)]" aria-hidden="true" />
+      <li
+        className={`inline-flex items-center gap-1.5 ${
+          isReview ? 'text-[var(--primary)]' : 'text-[var(--muted)]'
+        }`}
+        aria-current={isReview ? 'step' : undefined}
+      >
+        <span
+          className={`inline-flex size-5 items-center justify-center rounded-full border ${
+            isReview
+              ? 'border-[var(--accent)] bg-[var(--accent)] text-white'
+              : 'border-[var(--border-strong)] bg-[var(--card)] text-[var(--muted)]'
+          }`}
+        >
+          2
+        </span>
+        Review
+      </li>
+    </ol>
   );
 }
 
@@ -944,7 +1198,7 @@ function SessionItemsPager({
   if (pageCount <= 1) return null;
 
   const buttonClassName =
-    'inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[var(--border)] px-3 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:pointer-events-none disabled:opacity-45';
+    'inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[var(--border)] px-3 text-xs font-medium text-[var(--primary)] transition hover:bg-[var(--surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:pointer-events-none disabled:opacity-45';
 
   return (
     <nav
@@ -1012,7 +1266,7 @@ function StockValue({ row, value }: { row: SessionStockRow; value?: number }) {
   }
 
   return (
-    <span className="text-sm font-medium tabular-nums text-[var(--foreground)]">
+    <span className="text-sm font-medium tabular-nums text-[var(--primary)]">
       {formatQuantity(value, row.uom)}
     </span>
   );

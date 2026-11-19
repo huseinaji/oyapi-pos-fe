@@ -54,7 +54,9 @@ export default function TransactionPrintPage() {
         </div>
         <div className="flex justify-between text-base font-bold">
           <span>Total</span>
-          <span><b>{formatRp(transaction.total)}</b></span>
+          <span>
+            <b>{formatRp(transaction.total)}</b>
+          </span>
         </div>
       </div>
 

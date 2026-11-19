@@ -15,13 +15,13 @@ export function TransactionsTable<T>({
   return (
     <div
       data-slot="framed-table"
-      className="w-full overflow-hidden rounded-[10px] border border-[var(--border)]"
+      className="mt-4 w-full overflow-hidden rounded-[10px] border border-[var(--border)]"
     >
       <DataTable
         table={desktopTable}
         onRowClick={onRowClick}
         containerClassName="hidden md:block w-full"
-        tableClassName="[&_th]:border-b [&_th]:border-[var(--border)] [&_td]:border-b [&_td]:border-[var(--border)] [&_tr]:border-b [&_tr]:border-[var(--border)]/[0.5]"
+        tableClassName="[&_th]:border-b [&_th]:border-[var(--border)] [&_td]:py-4 [&_td]:border-b [&_td]:border-[var(--border)] [&_tr]:border-b [&_tr]:border-[var(--border)]/[0.5]"
         headerClassName="[&_th]:bg-[var(--surface-muted)]"
         rowClassName="transition-colors duration-200 hover:bg-[var(--surface-muted)] focus-visible:bg-[var(--surface-muted)]"
       />
@@ -29,7 +29,7 @@ export function TransactionsTable<T>({
         table={mobileTable}
         onRowClick={onRowClick}
         containerClassName="md:hidden w-full"
-        tableClassName="[&_th]:border-b [&_th]:border-[var(--border)] [&_td]:border-b [&_td]:border-[var(--border)]"
+        tableClassName="[&_th]:border-b [&_th]:border-[var(--border)] [&_td]:py-4 [&_td]:border-b [&_td]:border-[var(--border)]"
         rowClassName="transition-colors duration-200 hover:bg-[var(--surface-muted)] focus-visible:bg-[var(--surface-muted)]"
       />
     </div>

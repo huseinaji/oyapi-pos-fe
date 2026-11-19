@@ -1,16 +1,21 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ShoppingCart, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router';
-import { Card, CardContent } from '@/components/ui/card';
-import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from '@/components/ui/field';
 import { ApiError } from '@/lib/api/index';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 const forgotSchema = z.object({
-  email: z.email({ message: 'Enter a valid email' }),
+  email: z.email({ message: 'Masukkan alamat email yang valid' }),
 });
 
 type ForgotData = z.infer<typeof forgotSchema>;
@@ -30,78 +35,154 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = (data: ForgotData) => {
     setError('');
-    // Mock submit — in production, call your reset API
     try {
       setSubmittedEmail(data.email);
       setSubmitted(true);
     } catch (err) {
-      if (err instanceof ApiError && err.statusCode === 401) {
-        setError('Invalid email or password.');
-        return;
-      }
-
-      if (err instanceof TypeError) {
-        setError(
-          'Unable to reach the server. Check your connection and try again.',
-        );
-        return;
-      }
-
       if (err instanceof ApiError) {
-        setError('Login failed. Please try again.');
+        setError('Gagal mengirim tautan. Silakan coba lagi.');
         return;
       }
-
-      setError('An unexpected error occurred. Please try again.');
+      if (err instanceof TypeError) {
+        setError('Tidak dapat terhubung ke server. Periksa koneksi Anda.');
+        return;
+      }
+      setError('Terjadi kesalahan. Silakan coba lagi.');
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4 py-8">
-      <div className="w-full max-w-md">
-        {/* Branding */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent)]/15">
-            <ShoppingCart className="text-[var(--accent)]" size={24} />
-          </div>
-          <h1 className="text-3xl font-semibold tracking-[-0.02em] text-[var(--foreground)]">
-            Reset password
-          </h1>
-          <p className="mt-1.5 text-sm text-[var(--muted)]">
-            We'll send a reset link to your inbox
+    <div
+      className="flex min-h-screen"
+      style={{ fontFamily: 'var(--font-jakarta)' }}
+    >
+      {/* ── Left panel — desktop only ── */}
+      <div
+        className="hidden lg:flex lg:w-[45%] flex-col justify-between p-10 xl:p-14"
+        style={{
+          backgroundColor: 'var(--primary)',
+          color: 'var(--primary-foreground)',
+        }}
+      >
+        <div>
+          <img
+            src="/Asset-2svg.svg"
+            alt="OYAPI"
+            className="h-10 w-auto"
+            draggable={false}
+          />
+        </div>
+        <div>
+          <h2
+            className="text-[2.25rem] xl:text-[2.75rem] font-extrabold leading-tight tracking-[-0.02em] mb-4"
+            style={{ color: 'var(--primary-foreground)' }}
+          >
+            Technology that makes work easier, not harder.
+          </h2>
+          <p className="text-base" style={{ color: 'var(--primary-muted)' }}>
+            Built by UMKM owners, for UMKM owners.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <span
+            className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+            style={{ backgroundColor: '#C8643C' }}
+          />
+          <span className="text-sm" style={{ color: 'var(--primary-muted)' }}>
+            Dari UMKM, untuk UMKM.
+          </span>
+        </div>
+      </div>
 
-        {/* Card */}
-        <Card className="p-5 bg-[var(--card)] border-[var(--border)] shadow-[0_0_0.5px_rgba(0,0,0,0.14),0_4px_12px_rgba(0,0,0,0.08)]">
+      {/* ── Right panel ── */}
+      <div
+        className="flex flex-1 flex-col items-center justify-center px-6 py-12 lg:px-16"
+        style={{ backgroundColor: 'var(--background)' }}
+      >
+        {/* Mobile logo */}
+        <div className="mb-8 lg:hidden">
+          <img
+            src="/Asset-1svg.svg"
+            alt="OYAPI"
+            className="h-10 w-auto"
+            draggable={false}
+          />
+        </div>
+
+        <div className="w-full max-w-[400px]">
+          {/* Back link */}
+          <Link
+            to="/login"
+            className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium transition hover:opacity-70"
+            style={{ color: 'var(--muted)' }}
+          >
+            <ArrowLeft size={15} strokeWidth={1.8} />
+            Kembali ke halaman masuk
+          </Link>
+
+          {/* Heading */}
+          <div className="mb-8">
+            <h1
+              className="text-[2rem] font-bold tracking-[-0.02em] leading-tight mb-2"
+              style={{ color: 'var(--primary)' }}
+            >
+              Reset kata sandi
+            </h1>
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+              Masukkan email Anda dan kami akan mengirimkan tautan untuk
+              mengatur kata sandi baru.
+            </p>
+          </div>
+
+          {/* Error banner */}
           {error && (
-            <div className="mb-5 flex items-start gap-2.5 rounded-[12px] border border-[var(--status-danger)]/20 bg-[var(--status-danger)]/5 p-3.5 text-sm text-[var(--status-danger)]">
-              <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-[var(--status-danger)] text-[10px] font-bold leading-none">
+            <div
+              className="mb-5 flex items-start gap-2.5 rounded-xl border p-3.5 text-sm"
+              style={{
+                borderColor: 'rgba(200,32,20,0.2)',
+                backgroundColor: 'rgba(200,32,20,0.06)',
+                color: 'var(--status-danger)',
+              }}
+            >
+              <div
+                className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-bold leading-none"
+                style={{ borderColor: 'var(--status-danger)' }}
+              >
                 !
               </div>
-
               <p>{error}</p>
             </div>
           )}
-          <CardContent>
-            {submitted ? (
-            /* ── Success state ── */
-            <div className="flex flex-col items-center gap-4 py-2 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--status-success)]/10">
+
+          {submitted ? (
+            /* Success state */
+            <div className="flex flex-col items-center gap-4 py-4 text-center">
+              <div
+                className="flex h-16 w-16 items-center justify-center rounded-full"
+                style={{ backgroundColor: 'rgba(0,117,74,0.1)' }}
+              >
                 <CheckCircle2
-                  className="text-[var(--status-success)]"
                   size={32}
+                  style={{ color: 'var(--status-success)' }}
                 />
               </div>
               <div>
-                <p className="font-semibold">Check your inbox</p>
-                <p className="mt-1.5 text-sm text-[var(--muted)]">
-                  If{' '}
-                  <span className="font-medium text-[var(--foreground)]">
+                <p
+                  className="font-semibold text-base"
+                  style={{ color: 'var(--primary)' }}
+                >
+                  Periksa kotak masuk Anda
+                </p>
+                <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
+                  Jika{' '}
+                  <span
+                    className="font-medium"
+                    style={{ color: 'var(--primary)' }}
+                  >
                     {submittedEmail}
                   </span>{' '}
-                  is registered, we've sent reset instructions. Check your spam
-                  folder if it doesn't arrive.
+                  terdaftar, kami sudah mengirim instruksi reset. Periksa folder
+                  spam jika tidak muncul.
                 </p>
               </div>
               <button
@@ -110,71 +191,85 @@ export default function ForgotPasswordPage() {
                   setSubmitted(false);
                   setSubmittedEmail('');
                 }}
-                className="mt-2 text-sm font-medium text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
+                className="mt-2 text-sm font-semibold transition hover:opacity-70"
+                style={{ color: 'var(--accent-strong)' }}
               >
-                Try a different email
+                Coba email lain
               </button>
             </div>
           ) : (
-            <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+            <form
+              className="flex flex-col gap-5"
+              onSubmit={handleSubmit(onSubmit)}
+            >
               <Controller
                 name="email"
                 control={control}
                 render={({ field }) => (
-                  <div>
-                    <Field>
-                      <FieldLabel>Email address</FieldLabel>
-                      
-                      <div className="relative">
-                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-[var(--muted)]">
-                          <Mail size={16} />
-                        </div>
-                        <input
-                          id="email"
-                          type="email"
-                          {...field}
-                          placeholder="you@example.com"
-                          autoFocus
-                          className={`w-full rounded-[12px] border bg-[var(--surface-muted)] py-3 pl-10 pr-4 text-sm outline-none transition focus:ring-2 ${
-                            errors.email
-                              ? 'border-[var(--status-danger)] focus:border-[var(--status-danger)] focus:ring-[var(--status-danger)]/15'
-                              : 'border-[var(--border)] focus:border-[var(--accent)] focus:ring-[var(--accent)]/15'
-                          }`}
-                        />
-                      </div>
-                      {errors.email && (
-                        <FieldError className='text-xs text-[var(--status-danger)]'>{errors.email.message}</FieldError>
-                      )}
-                      
-                      <FieldDescription className='text-xs text-[var(--muted)]'>Enter the email address linked to your account.</FieldDescription>
-                    </Field>
-                  </div>
+                  <Field>
+                    <FieldLabel htmlFor="email">Alamat email</FieldLabel>
+                    <div className="relative">
+                      <span
+                        className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4"
+                      >
+                        <Mail size={16} strokeWidth={1.8} />
+                      </span>
+                      <Input
+                        id="email"
+                        type="email"
+                        {...field}
+                        placeholder="you@example.com"
+                        autoFocus
+                        autoComplete="email"
+                        aria-invalid={!!errors.email}
+                        className="h-12 rounded-xl border-[1.5px] bg-card pl-11 pr-4 text-sm font-medium focus-visible:ring-[3px]"
+                        style={{
+                          borderColor: errors.email
+                            ? 'var(--status-danger)'
+                            : 'var(--border)',
+                        }}
+                      />
+                    </div>
+                    {errors.email && (
+                      <FieldError
+                        className="text-xs"
+                        style={{ color: 'var(--status-danger)' }}
+                      >
+                        {errors.email.message}
+                      </FieldError>
+                    )}
+                    <FieldDescription
+                      className="text-xs"
+                      style={{ color: 'var(--muted)' }}
+                    >
+                      Gunakan email yang terhubung ke akun Anda.
+                    </FieldDescription>
+                  </Field>
                 )}
               />
 
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                size={'lg'}
-                className="inline-flex w-full items-center justify-center rounded-[12px] bg-[var(--accent-strong)] px-4 py-3 text-sm font-semibold text-[var(--accent-foreground)] transition hover:opacity-90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-12 w-full rounded-full text-sm font-bold tracking-wide transition active:scale-[0.98]"
+                style={{
+                  backgroundColor: 'var(--primary)',
+                  color: 'var(--primary-foreground)',
+                }}
               >
-                {isSubmitting ? 'Sending...' : 'Send reset link'}
+                {isSubmitting ? 'Mengirim…' : 'Kirim tautan reset'}
               </Button>
+
+              <p
+                className="text-center text-xs"
+                style={{ color: 'var(--muted)' }}
+              >
+                Tidak menerima email? Periksa folder spam, atau coba lagi dalam
+                60 detik.
+              </p>
             </form>
           )}
-          </CardContent>
-        </Card>
-
-        {/* Footer */}
-        <p className="mt-6 text-center text-sm text-[var(--muted)]">
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-1.5 font-semibold text-[var(--accent)] transition hover:text-[var(--accent-strong)]"
-          >
-            <ArrowLeft size={14} />
-            Back to sign in
-          </Link>
-        </p>
+        </div>
       </div>
     </div>
   );

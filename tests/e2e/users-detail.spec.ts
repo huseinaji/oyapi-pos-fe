@@ -197,3 +197,88 @@ test('enables an inactive member through the store assign endpoint', async ({
     });
   await expect(drawer).toBeHidden();
 });
+
+test('store admins can edit only a member store role', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await installApiMocks(page, {
+    authenticated: true,
+    storeRole: 'admin',
+  });
+
+  const member = {
+    id: 'store-member-role-edit',
+    storeId: STORE_ID,
+    userId: 'member-role-edit-user',
+    role: 'cashier',
+    status: 'active',
+    isDefault: false,
+    createdAt: '2026-10-25T05:09:00.000Z',
+    updatedAt: '2026-10-26T02:11:00.000Z',
+    user: {
+      id: 'member-role-edit-user',
+      username: 'cashier-to-promote',
+      email: 'promote@example.test',
+      role: 'USER',
+      status: 'ACTIVE',
+      lastLogin: null,
+    },
+  };
+  let memberRole: 'cashier' | 'admin' = 'cashier';
+  let editRequest: { path: string; body: Record<string, unknown> } | null =
+    null;
+
+  await page.route(`**/api/v1/store/${STORE_ID}/members`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        count: 1,
+        rows: [{ ...member, role: memberRole }],
+      }),
+    });
+  });
+  await page.route(
+    `**/api/v1/store/${STORE_ID}/members/${member.id}`,
+    async (route) => {
+      const request = route.request();
+      const body = request.postDataJSON() as Record<string, unknown>;
+      editRequest = {
+        path: new URL(request.url()).pathname,
+        body,
+      };
+      if (body.role === 'admin' || body.role === 'cashier') {
+        memberRole = body.role;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...member, role: memberRole }),
+      });
+    },
+  );
+
+  await page.goto('/users');
+  await page
+    .locator('table:visible')
+    .getByText('cashier-to-promote', { exact: true })
+    .click();
+
+  const drawer = page.locator('[data-slot="drawer-popup"]').filter({
+    hasText: 'Store member',
+  });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('textbox')).toHaveCount(0);
+  const roleSelect = drawer.getByRole('combobox', { name: 'Store role' });
+  await roleSelect.click();
+  await page.getByRole('option', { name: 'Admin', exact: true }).click();
+  await drawer.getByRole('button', { name: 'Save role' }).click();
+
+  await expect.poll(() => editRequest).toEqual({
+    path: `/api/v1/store/${STORE_ID}/members/${member.id}`,
+    body: { userId: member.userId, role: 'admin' },
+  });
+  await expect(drawer).toBeHidden();
+  await expect(
+    page.locator('table:visible').getByText('admin', { exact: true }),
+  ).toBeVisible();
+});

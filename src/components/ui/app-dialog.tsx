@@ -13,6 +13,7 @@ type AppDialogProps = {
   footer?: React.ReactNode;
   headerClassName?: string;
   closeButtonClassName?: string;
+  panelClassName?: string;
   size?: 'sm' | 'md' | 'lg';
 };
 
@@ -34,6 +35,7 @@ export function AppDialog({
   footer,
   headerClassName,
   closeButtonClassName,
+  panelClassName,
   size = 'md',
 }: AppDialogProps) {
   const titleId = useId();
@@ -149,7 +151,7 @@ export function AppDialog({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className={`relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--card)] shadow-[0_0_0.5px_rgba(0,0,0,0.14),0_8px_24px_rgba(0,0,0,0.18)] ${sizeClasses[size]}`}
+        className={`relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--card)] shadow-[0_0_0.5px_rgba(0,0,0,0.14),0_8px_24px_rgba(0,0,0,0.18)] ${sizeClasses[size]} ${panelClassName ?? ''}`}
       >
         {/* Header */}
         <div

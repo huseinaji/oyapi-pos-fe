@@ -64,7 +64,7 @@ export function TransactionDetailDrawer({
                   <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
                     Transaction preview
                   </p>
-                  <DrawerTitle className="mt-1 truncate text-left text-lg font-semibold text-[var(--foreground)]">
+                  <DrawerTitle className="mt-1 truncate text-left text-lg font-semibold text-[var(--primary)]">
                     {transaction.invoice}
                   </DrawerTitle>
                 </div>
@@ -72,7 +72,7 @@ export function TransactionDetailDrawer({
                   <button
                     type="button"
                     onClick={() => onOpenChange(false)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--muted)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                     aria-label="Close transaction details"
                   >
                     <X size={16} />
@@ -113,7 +113,7 @@ export function TransactionDetailDrawer({
                 </div>
 
                 <div className="order-1 md:order-2">
-                  <h3 className="mb-3 text-base font-semibold text-[var(--foreground)]">
+                  <h3 className="mb-3 text-base font-semibold text-[var(--primary)]">
                     Items
                   </h3>
                   {transaction.items.length > 0 ? (
@@ -124,14 +124,14 @@ export function TransactionDetailDrawer({
                           className="flex items-start justify-between gap-3 py-1"
                         >
                           <div className="min-w-0">
-                            <p className="truncate text-base font-medium text-[var(--foreground)]">
+                            <p className="truncate text-base font-medium text-[var(--primary)]">
                               {item.name}
                             </p>
                             <p className="mt-0.5 text-xs text-[var(--muted)]">
                               {item.qty} {item.uom}
                             </p>
                           </div>
-                          <p className="shrink-0 text-right text-sm font-medium tabular-nums text-[var(--foreground)]">
+                          <p className="shrink-0 text-right text-sm font-medium tabular-nums text-[var(--primary)]">
                             {formatRp(item.total)}
                           </p>
                         </li>
@@ -147,19 +147,19 @@ export function TransactionDetailDrawer({
                 <dl className="order-3 space-y-3 border-t border-[var(--border)]/70 pt-4">
                   <div className="flex items-center justify-between gap-4">
                     <dt className="text-sm text-[var(--muted)]">Subtotal</dt>
-                    <dd className="text-right text-sm font-medium tabular-nums text-[var(--foreground)]">
+                    <dd className="text-right text-sm font-medium tabular-nums text-[var(--primary)]">
                       {formatRp(transaction.subtotal)}
                     </dd>
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <dt className="text-sm text-[var(--muted)]">Discount</dt>
-                    <dd className="text-right text-sm font-medium tabular-nums text-[var(--foreground)]">
+                    <dd className="text-right text-sm font-medium tabular-nums text-[var(--primary)]">
                       {formatRp(transaction.discount)}
                     </dd>
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <dt className="text-sm text-[var(--muted)]">Tax</dt>
-                    <dd className="text-right text-sm font-medium tabular-nums text-[var(--foreground)]">
+                    <dd className="text-right text-sm font-medium tabular-nums text-[var(--primary)]">
                       {formatRp(transaction.tax)}
                     </dd>
                   </div>
@@ -168,7 +168,7 @@ export function TransactionDetailDrawer({
                       <UserRound size={14} />
                       Cashier
                     </dt>
-                    <dd className="text-right text-sm font-medium text-[var(--foreground)]">
+                    <dd className="text-right text-sm font-medium text-[var(--primary)]">
                       {transaction.cashier || '—'}
                     </dd>
                   </div>
@@ -177,7 +177,7 @@ export function TransactionDetailDrawer({
                       <CalendarClock size={14} />
                       Date
                     </dt>
-                    <dd className="text-right text-sm font-medium text-[var(--foreground)]">
+                    <dd className="text-right text-sm font-medium text-[var(--primary)]">
                       {formatTransactionDate(transaction.recordedAt, {
                         dateStyle: 'medium',
                         timeStyle: 'short',

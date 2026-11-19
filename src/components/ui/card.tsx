@@ -9,7 +9,10 @@ function Card({
   size = 'default',
   noPadding = false,
   ...props
-}: React.ComponentProps<'div'> & { size?: 'default' | 'sm'; noPadding?: boolean }) {
+}: React.ComponentProps<'div'> & {
+  size?: 'default' | 'sm';
+  noPadding?: boolean;
+}) {
   return (
     <div
       data-slot="card"
@@ -46,7 +49,10 @@ function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="card-title"
-      className={cn('text-base font-semibold leading-snug text-[var(--foreground)]', className)}
+      className={cn(
+        'text-base font-semibold leading-snug text-[var(--primary)]',
+        className,
+      )}
       {...props}
     />
   );
@@ -66,7 +72,10 @@ function CardAction({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="card-action"
-      className={cn('col-start-2 row-span-2 row-start-1 self-start justify-self-end', className)}
+      className={cn(
+        'col-start-2 row-span-2 row-start-1 self-start justify-self-end',
+        className,
+      )}
       {...props}
     />
   );

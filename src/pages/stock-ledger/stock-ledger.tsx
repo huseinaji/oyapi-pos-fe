@@ -41,10 +41,10 @@ export default function StockLedgerPage() {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="min-w-0">
-          <p className="truncate font-medium text-[var(--foreground)]">
+          <p className="truncate font-medium text-[var(--primary)]">
             {row.original.item.name}
           </p>
-          <p className="truncate text-xs text-[var(--muted-2)]">
+          <p className="truncate text-xs text-[var()]">
             {row.original.id}
           </p>
         </div>
@@ -109,10 +109,10 @@ export default function StockLedgerPage() {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-[var(--foreground)]">
+          <p className="truncate text-sm font-semibold text-[var(--primary)]">
             {row.original.item.name}
           </p>
-          <p className="truncate text-xs text-[var(--muted-2)]">
+          <p className="truncate text-xs text-[var()]">
             {row.original.ledgerDirection} · {row.original.reference}
           </p>
         </div>
@@ -197,7 +197,7 @@ export default function StockLedgerPage() {
         description="Manage the categories assigned to store items."
       >
         {query.isError ? (
-          <section className="rounded-[14px] border border-[var(--status-danger)]/30 bg-[var(--status-danger)]/5 px-5 py-8 text-center text-[var(--foreground)]">
+          <section className="rounded-[14px] border border-[var(--status-danger)]/30 bg-[var(--status-danger)]/5 px-5 py-8 text-center text-[var(--primary)]">
             <p className="font-medium">Unable to load stock movements</p>
             <p className="mt-1 text-sm text-[var(--muted)]">
               Check the inventory service, then retry.
@@ -214,7 +214,7 @@ export default function StockLedgerPage() {
         ) : ledger.length === 0 ? (
           <section className="flex flex-col items-center gap-2 rounded-[14px] border border-dashed border-[var(--border-strong)] bg-[var(--card)] px-5 py-12 text-center text-[var(--muted)]">
             <Boxes size={24} className="text-[var(--accent)]" />
-            <p className="font-medium text-[var(--foreground)]">
+            <p className="font-medium text-[var(--primary)]">
               No stock movements found
             </p>
             <p className="text-sm text-[var(--muted)]">
